@@ -14,4 +14,53 @@ public sealed class ReadOnlyPortfolio {
  AND (LOWER(h.Name) LIKE $q OR LOWER(COALESCE(h.Symbol,''))=$symbol)
  AND h.ValueIls IS NOT NULL GROUP BY s.ValuationDate
  """;cmd.Parameters.AddWithValue("$a",id);cmd.Parameters.AddWithValue("$d",date.ToString("yyyy-MM-dd"));cmd.Parameters.AddWithValue("$q","%"+term.ToLowerInvariant().Replace("%", "") .Replace("_", "")+"%");cmd.Parameters.AddWithValue("$symbol",term.ToLowerInvariant());using var rd=cmd.ExecuteReader();return rd.Read()?new Valuation(DateTime.Parse(rd.GetString(0)),rd.GetDouble(1)):null;}
+    // Read two complete, dated snapshots. Missing holdings count as zero, not missing snapshots.
+    public HoldingRanking? RankHoldingChanges(long accountId, DateTime requestedStart, DateTime requestedEnd)
+    {
+        using var c = Connect();
+        (long id, DateTime date)? SnapshotAt(DateTime date)
+        {
+            using var cmd = c.CreateCommand();
+            cmd.CommandText = "SELECT Id, ValuationDate FROM Snapshots WHERE AccountId=$a AND ValuationDate <= $d ORDER BY ValuationDate DESC, CapturedAt DESC, Id DESC LIMIT 1";
+            cmd.Parameters.AddWithValue("$a", accountId);
+            cmd.Parameters.AddWithValue("$d", date.ToString("yyyy-MM-dd"));
+            using var r = cmd.ExecuteReader();
+            return r.Read() ? (r.GetInt64(0), DateTime.Parse(r.GetString(1))) : null;
+        }
+        var first = SnapshotAt(requestedStart);
+        var last = SnapshotAt(requestedEnd);
+        if (first is null || last is null) return null;
+        Dictionary<string,(string name,string symbol,double value)> ReadHoldings(long snapshotId)
+        {
+            var data = new Dictionary<string,(string,string,double)>(StringComparer.OrdinalIgnoreCase);
+            using var cmd = c.CreateCommand();
+            cmd.CommandText = "SELECT Name, COALESCE(Symbol,''), ValueIls FROM Holdings WHERE SnapshotId=$s AND ValueIls IS NOT NULL";
+            cmd.Parameters.AddWithValue("$s", snapshotId);
+            using var r = cmd.ExecuteReader();
+            while(r.Read())
+            {
+                var name = r.GetString(0).Trim();
+                var symbol = r.GetString(1).Trim();
+                // Match by symbol where available, otherwise by the recorded holding name.
+                var key = symbol.Length > 0 ? "S:"+symbol.ToUpperInvariant() : "N:"+name.ToUpperInvariant();
+                var value = r.GetDouble(2);
+                if (data.TryGetValue(key, out var old)) value += old.value;
+                data[key] = (name, symbol, value);
+            }
+            return data;
+        }
+        var start = ReadHoldings(first.Value.id);
+        var end = ReadHoldings(last.Value.id);
+        var keys = start.Keys.Union(end.Keys, StringComparer.OrdinalIgnoreCase);
+        var items = keys.Select(key =>
+        {
+            var hasStart = start.TryGetValue(key, out var a);
+            var hasEnd = end.TryGetValue(key, out var b);
+            var startValue = hasStart ? a.value : 0d;
+            var endValue = hasEnd ? b.value : 0d;
+            return new HoldingChange(hasEnd ? b.name : a.name, hasEnd ? b.symbol : a.symbol,
+                startValue, endValue, endValue-startValue);
+        }).ToList();
+        return new HoldingRanking(first.Value.date, last.Value.date, items);
+    }
 }

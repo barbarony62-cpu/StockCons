@@ -33,12 +33,15 @@ public sealed class LocalInterpreter
         var prompt = $"""
             You are a strict parser for a local portfolio application. Today is {today}.
             Return one JSON object only, with these keys:
-            operation: account_change, account_value, holding_change, holding_value, or unsupported
+            operation: account_change, account_value, holding_change, holding_value, top_holding_changes, bottom_holding_changes, or unsupported
             security: string or null
             start_date: YYYY-MM-DD or null
             end_date: YYYY-MM-DD or null
             language: en or he
             'My Tesla investment' refers to the holding, not market share-price performance.
+            'Best five stocks' / 'top stocks by money' means top_holding_changes (absolute NIS difference between holding values).
+            'Worst five stocks' means bottom_holding_changes. Do NOT calculate transaction-adjusted profit.
+            For rankings without a period, default to January 1 this year through today.
             For changes provide start_date and end_date; for value provide end_date.
             'Since January 1' means January 1 of this year; 'six months' means six calendar months ago.
             Do not invent values or SQL. If unclear, choose unsupported.
