@@ -41,7 +41,7 @@ public sealed class LocalInterpreter
             'My Tesla investment' refers to the holding, not market share-price performance.
             'Best five stocks' / 'top stocks by money' means top_holding_changes (absolute NIS difference between holding values).
             'Worst five stocks' means bottom_holding_changes. Do NOT calculate transaction-adjusted profit.
-            For rankings without a period, default to January 1 this year through today.
+            For rankings without a period, default to January 1 this year through today. If a year is specified, use January 1 of that year. Respect restrictions such as only holdings that existed on the first recorded day of the year; the application applies this filter.
             For changes provide start_date and end_date; for value provide end_date.
             'Since January 1' means January 1 of this year; 'six months' means six calendar months ago.
             Do not invent values or SQL. If unclear, choose unsupported.

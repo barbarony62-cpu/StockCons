@@ -14,8 +14,20 @@ public sealed class ReadOnlyPortfolio {
  AND (LOWER(h.Name) LIKE $q OR LOWER(COALESCE(h.Symbol,''))=$symbol)
  AND h.ValueIls IS NOT NULL GROUP BY s.ValuationDate
  """;cmd.Parameters.AddWithValue("$a",id);cmd.Parameters.AddWithValue("$d",date.ToString("yyyy-MM-dd"));cmd.Parameters.AddWithValue("$q","%"+term.ToLowerInvariant().Replace("%", "") .Replace("_", "")+"%");cmd.Parameters.AddWithValue("$symbol",term.ToLowerInvariant());using var rd=cmd.ExecuteReader();return rd.Read()?new Valuation(DateTime.Parse(rd.GetString(0)),rd.GetDouble(1)):null;}
+    // The earliest recorded snapshot within the requested calendar period.
+    public DateTime? FirstSnapshotDate(long accountId, DateTime from, DateTime to)
+    {
+        using var c = Connect();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT MIN(ValuationDate) FROM Snapshots WHERE AccountId=$a AND ValuationDate >= $from AND ValuationDate <= $to";
+        cmd.Parameters.AddWithValue("$a", accountId);
+        cmd.Parameters.AddWithValue("$from", from.ToString("yyyy-MM-dd"));
+        cmd.Parameters.AddWithValue("$to", to.ToString("yyyy-MM-dd"));
+        var result = cmd.ExecuteScalar();
+        return result is string date ? DateTime.Parse(date) : null;
+    }
     // Read two complete, dated snapshots. Missing holdings count as zero, not missing snapshots.
-    public HoldingRanking? RankHoldingChanges(long accountId, DateTime requestedStart, DateTime requestedEnd)
+    public HoldingRanking? RankHoldingChanges(long accountId, DateTime requestedStart, DateTime requestedEnd, bool openingHoldingsOnly = false)
     {
         using var c = Connect();
         (long id, DateTime date)? SnapshotAt(DateTime date)
@@ -51,7 +63,7 @@ public sealed class ReadOnlyPortfolio {
         }
         var start = ReadHoldings(first.Value.id);
         var end = ReadHoldings(last.Value.id);
-        var keys = start.Keys.Union(end.Keys, StringComparer.OrdinalIgnoreCase);
+        var keys = openingHoldingsOnly ? start.Keys : start.Keys.Union(end.Keys, StringComparer.OrdinalIgnoreCase);
         var items = keys.Select(key =>
         {
             var hasStart = start.TryGetValue(key, out var a);

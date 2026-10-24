@@ -1,4 +1,4 @@
-# AskCons V0.1.5
+# AskCons V0.1.6
 
 Complete independent .NET 8 WPF application. Build automatically on push to main via GitHub Actions.
 

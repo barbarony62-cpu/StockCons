@@ -4,6 +4,8 @@ public partial class MainWindow:Window {
  private readonly ReadOnlyPortfolio db=new();private readonly LocalInterpreter interpreter=new();
  private readonly ObservableCollection<string> questions=new();
  private bool loadingHistory;
+ private bool isAsking;
+ private int requestNumber;
  private static readonly string HistoryPath=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"AskCons","questions.json");
  private Dictionary<string,List<string>> saved=new();
  private string AccountKey => (AccountBox.SelectedItem as Account)?.Id.ToString()??"";
@@ -23,23 +25,62 @@ public partial class MainWindow:Window {
  private void RefreshClick(object sender,RoutedEventArgs e)=>Refresh();
  private void AccountChanged(object sender,SelectionChangedEventArgs e){if(AnswerText!=null && AccountBox.SelectedItem is Account a){AnswerText.Text=$"Selected account: {a.Name}. Enter a question below.";UpdateHistory();}}
  private async void AskClick(object sender,RoutedEventArgs e)=>await AskAsync();
- private async Task AskAsync(){if(!AskButton.IsEnabled)return;if(AccountBox.SelectedItem is not Account account){AnswerText.Text="Select an account first.";return;}var question=QuestionBox.Text.Trim();if(question.Length==0)return;Remember(question);AskButton.IsEnabled=false;AnswerText.Text="Interpreting your question locally...";try{if(LooksLikeRanking(question,out var worst)) { AnswerText.Text=AnswerRanking(account,new QueryIntent{operation=worst?"bottom_holding_changes":"top_holding_changes"},question); } else {var intent=await interpreter.Interpret(question,CancellationToken.None);AnswerText.Text=Answer(account,intent,question);}}catch(Exception ex){AnswerText.Text="AI interpretation failed. Use Test AI connection to diagnose.\n\n"+ex.Message;}finally{AskButton.IsEnabled=true;QuestionBox.Focus();}}
+ private async Task AskAsync(){if(isAsking){AnswerText.Text="A question is still processing. Please wait for it to finish.";return;}if(AccountBox.SelectedItem is not Account account){AnswerText.Text="Select an account first.";return;}var question=QuestionBox.Text.Trim();if(question.Length==0)return;Remember(question);
+     isAsking=true;
+     var myRequest=++requestNumber;
+     AskButton.IsEnabled=false;
+     AskButton.Content="Working...";
+     AnswerText.Text="Processing your question...";
+     AnswerScroll.ScrollToTop();
+     try
+     {
+         // Do not bypass the language interpreter: qualifiers and periods must be respected.
+         var intent=await interpreter.Interpret(question,CancellationToken.None);
+         if(myRequest==requestNumber)
+         {
+             AnswerText.Text=await Task.Run(()=>Answer(account,intent,question));
+             AnswerScroll.ScrollToTop();
+         }
+     }
+     catch(Exception ex)
+     {
+         AnswerText.Text="Question failed. Please retry or test the AI connection.\n\n"+ex.Message;
+     }
+     finally
+     {
+         isAsking=false;
+         AskButton.IsEnabled=true;
+         AskButton.Content="Ask →";
+         QuestionBox.Focus();
+     }
+ }
  private string AnswerRanking(Account account, QueryIntent intent, string question)
  {
-     bool worst = intent.operation == "bottom_holding_changes";
-     var start = ParseDate(intent.start_date) ?? new DateTime(DateTime.Today.Year,1,1);
-     var end = ParseDate(intent.end_date) ?? DateTime.Today;
-     if (end > DateTime.Today || start > end) return "Please provide a valid historical date range.";
-     var result = db.RankHoldingChanges(account.Id,start,end);
-     if (result is null) return "There are no saved snapshots on or before both requested dates. No values were estimated.";
-     var sorted = worst ? result.Items.OrderBy(x=>x.Change).ToList() : result.Items.OrderByDescending(x=>x.Change).ToList();
-     var count = 5;
-     var match = System.Text.RegularExpressions.Regex.Match(question,@"\b(?:top|best|worst|bottom)\s+(\d{1,2})\b",System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-     if(match.Success && int.TryParse(match.Groups[1].Value,out var n))count=Math.Clamp(n,1,25);
-     var selected=sorted.Take(count).ToList();
-     if(selected.Count==0)return "No holdings with recorded values were found for these snapshots.";
-     var lines=selected.Select((x,index)=>$"{index+1}. {x.Name}{(string.IsNullOrWhiteSpace(x.Symbol)?"":" ("+x.Symbol+")")}  {x.Change:+#,##0.00;-#,##0.00;0.00} NIS\n    {x.StartValue:N2} → {x.EndValue:N2} NIS");
-     return $"Account: {account.Name}\n{(worst?"Largest decreases":"Largest increases")} in holding value (NIS)\n{result.StartDate:yyyy-MM-dd} → {result.EndDate:yyyy-MM-dd}\n\n" + string.Join("\n\n",lines) + "\n\nThis is the difference between recorded holding values, regardless of purchases or sales; it is not investment profit. Holdings absent from a snapshot are counted as zero. Matching uses security symbols where available, otherwise names. Rankings include all recorded securities, including funds and bonds where present.";
+     bool worst=intent.operation=="bottom_holding_changes";
+     var year=System.Text.RegularExpressions.Regex.Match(question,@"\b(?:19|20)\d{2}\b");
+     var requestedYear=year.Success?int.Parse(year.Value):DateTime.Today.Year;
+     var start=ParseDate(intent.start_date)??new DateTime(requestedYear,1,1);
+     var end=ParseDate(intent.end_date)??DateTime.Today;
+     if(year.Success && requestedYear<DateTime.Today.Year && end.Year!=requestedYear)end=new DateTime(requestedYear,12,31);
+     if(start>end || end>DateTime.Today)return "Please provide a valid historical date range.";
+     var q=question.ToLowerInvariant();
+     bool openingOnly=q.Contains("first recorded")||q.Contains("first day")||q.Contains("beginning of")||q.Contains("start of")||q.Contains("already held")||q.Contains("existed on")||q.Contains("existing at")||q.Contains("תחילת")||q.Contains("יום הראשון");
+     // When the user explicitly refers to the first recorded day of the year, select that day.
+     if(openingOnly && (year.Success||q.Contains("year")||q.Contains("שנה")))
+     {
+         var first=db.FirstSnapshotDate(account.Id,new DateTime(requestedYear,1,1),new DateTime(requestedYear,12,31));
+         if(first is null)return $"No recorded snapshots were found during {requestedYear}.";
+         start=first.Value;
+     }
+     var result=db.RankHoldingChanges(account.Id,start,end,openingOnly);
+     if(result is null)return "No saved snapshots were available for both dates. No values were estimated.";
+     var ordered=worst?result.Items.OrderBy(x=>x.Change):result.Items.OrderByDescending(x=>x.Change);
+     var match=System.Text.RegularExpressions.Regex.Match(question,@"\b(?:top|best|worst|bottom)\s+(\d{1,2})\b",System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+     int count=match.Success&&int.TryParse(match.Groups[1].Value,out var n)?Math.Clamp(n,1,25):5;
+     var selected=ordered.Take(count).ToList();
+     if(selected.Count==0)return "No qualifying holdings were found in the opening snapshot.";
+     var rows=selected.Select((x,i)=>$"{i+1,2}. {x.Name}{(string.IsNullOrWhiteSpace(x.Symbol)?"":" ("+x.Symbol+")")}\n      Start: {x.StartValue:N2} NIS   End: {x.EndValue:N2} NIS   Change: {x.Change:+#,##0.00;-#,##0.00;0.00} NIS");
+     return $"Account: {account.Name}\n{(worst?"Largest decreases":"Largest increases")} in recorded holding value (NIS)\nActual snapshots: {result.StartDate:yyyy-MM-dd} → {result.EndDate:yyyy-MM-dd}\n{(openingOnly?"Only securities present in the opening snapshot.\n":"")}\n"+string.Join("\n\n",rows)+"\n\nValues are differences between saved holdings, not transaction-adjusted investment returns. All recorded security types may be included.";
  }
  private static bool LooksLikeRanking(string question,out bool worst)
  {
