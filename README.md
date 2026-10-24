@@ -1,4 +1,4 @@
-# AskCons V0.3.1 — local financial query planning
+# AskCons V0.3.2 — local financial query planning
 
 Independent WPF application. The ConsolidationNG SQLite database is opened strictly in read-only mode. No schema changes, migrations or writes to the financial database.
 
@@ -17,7 +17,11 @@ This is a bounded composable query engine, **not unrestricted SQL generation**. 
 
 GitHub Actions builds the installer automatically on push to main.
 
-## 0.3.1 hotfix
+## 0.3.2 hotfix
 - Normalize top/bottom portfolio ranking plans before validating single-security requirements.
 - Fix stale title bar version.
 - A stocks-only filter still requires verified classification; AskCons does not pretend funds are stocks.
+
+
+## V0.3.2 ranking interpretation fix
+A portfolio-wide top/bottom ranking does not require a named security. The planner's inferred `security_type=stock` is normalized to `all` for general wording (including "stocks existed"), with a clear result note that stocks, funds and bonds are included. Explicit type-only restrictions remain unsupported rather than being silently dropped.

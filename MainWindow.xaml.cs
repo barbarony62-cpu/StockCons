@@ -165,7 +165,20 @@ public partial class MainWindow : Window
             intent.sort_direction = worst ? "asc" : "desc";
         }
         if (LooksLikeRanking(question, out _) && (intent.operation is "top_holding_changes" or "bottom_holding_changes"))
+        {
             intent.security = null;
+            // Qwen frequently infers security_type=stock from ordinary wording such as
+            // "stocks existed on the first day", even if the question requests holdings.
+            // The adapter cannot classify security types. Treat unqualified "stocks" as
+            // colloquial "holdings" and disclose the broader result below. Explicit
+            // stock-only filters are never silently relaxed.
+            var q = question.ToLowerInvariant();
+            bool explicitTypeFilter = Regex.IsMatch(q,
+                @"\b(only|exclusively|just|individual|common|ordinary)\s+(stocks?|shares?|equities|funds?|bonds?)\b|\b(exclud(e|ing)|without|no)\s+(funds?|bonds?|etfs?|stocks?)\b|\b(stocks?|shares?|equities|funds?|bonds?)\s+only\b",
+                RegexOptions.IgnoreCase);
+            if (!explicitTypeFilter)
+                intent.security_type = "all";
+        }
         return intent;
     }
     private sealed record AnswerData(object Data, string Subtitle, string Note, string Text);
@@ -241,7 +254,7 @@ public partial class MainWindow : Window
             var rows = filtered.Take(count).Select((x, i) => new RankingRow { Rank = i + 1, Security = x.Name + (string.IsNullOrWhiteSpace(x.Symbol) ? "" : " (" + x.Symbol + ")"), Start = x.StartValue, End = x.EndValue, Change = x.Change }).ToList();
             if (rows.Count == 0) return Plain("No holdings qualify for the selected period and opening-date restriction.");
             string subtitle = $"{account.Name}  ·  {ranking.StartDate:dd MMM yyyy} – {ranking.EndDate:dd MMM yyyy}  ·  NIS";
-            string note = (openingOnly ? "Only securities present in the opening snapshot.  " : "") + "Recorded holding-value changes; purchases and sales are not adjusted. Includes funds and bonds where recorded.";
+            string note = (openingOnly ? "Only securities present in the opening snapshot.  " : "") + "Recorded holding-value changes; purchases and sales are not adjusted. Includes all recorded security types (stocks, funds and bonds); stock-only classification is not available.";
             string text = string.Join("\n", rows.Select(x => $"{x.Rank}. {x.Security}: {x.Start:N2} → {x.End:N2} NIS; change {x.Change:+#,##0.00;-#,##0.00;0.00} NIS"));
             return new AnswerData(rows, subtitle, note, text);
         }

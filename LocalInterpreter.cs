@@ -61,8 +61,10 @@ public sealed class LocalInterpreter
             'Worth over 200000 at start' => minimum_start_value_nis 200000.
             'Worth under 150000 now' => maximum_end_value_nis 150000.
             'Tesla by month' => holding_series, security Tesla, interval month.
-            IMPORTANT: security_type stock/fund/bond is NOT supported by the current verified
-            database adapter; if requested, set security_type accurately and application will explain.
+            IMPORTANT: Treat casual use of 'stocks' as 'holdings' when the question is about
+            portfolio-wide ranking. Set security_type=all unless the user EXPLICITLY asks
+            for a stock-only, fund-only or bond-only filter (e.g. 'only stocks', 'exclude ETFs').
+            Type-specific filtering is not supported; the application will explain if explicit.
             The supported adapter does not compute realized gains, dividends, transaction-adjusted
             returns, market causality, or arbitrary joins. Return unsupported with unsupported_reason
             if needed. Never drop an explicit condition or fabricate a capability.

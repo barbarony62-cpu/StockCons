@@ -1,4 +1,4 @@
-<Window x:Class="AskCons.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="AskCons V0.3.1" WindowState="Maximized" MinWidth="950" MinHeight="650" Background="#F5F8FD" FontFamily="Segoe UI">
+<Window x:Class="AskCons.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="AskCons V0.3.2" WindowState="Maximized" MinWidth="950" MinHeight="650" Background="#F5F8FD" FontFamily="Segoe UI">
 <Grid>
  <Grid.RowDefinitions><RowDefinition Height="92"/><RowDefinition Height="*"/><RowDefinition Height="112"/></Grid.RowDefinitions>
  <Border Grid.Row="0" Background="#0C3265" Padding="20,10"><StackPanel Orientation="Horizontal" VerticalAlignment="Center">
