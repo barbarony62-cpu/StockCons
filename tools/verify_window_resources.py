@@ -10,3 +10,6 @@ csproj=Path("AskCons.csproj").read_text()
 assert '<Resource Include="AskCons.png" />' in csproj
 assert '<ApplicationIcon>AskCons.ico</ApplicationIcon>' in csproj
 print("WPF window resources and XML validated")
+
+assert 'Test AI connection' in xaml
+print("AskCons 0.1.3 AI diagnostic UI verified")

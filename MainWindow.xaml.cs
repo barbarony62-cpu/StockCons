@@ -4,9 +4,15 @@ public partial class MainWindow:Window {
  private readonly ReadOnlyPortfolio db=new();private readonly LocalInterpreter interpreter=new();
  public MainWindow(){InitializeComponent();Loaded+=(_,_)=>Refresh();}
  private void Refresh(){try{var old=AccountBox.SelectedValue;var a=db.Accounts();AccountBox.ItemsSource=a;AccountBox.SelectedItem=a.FirstOrDefault(x=>Equals(x.Id,old))??a.FirstOrDefault();DbStatus.Text="Connected: read-only\n"+ReadOnlyPortfolio.DefaultPath;}catch(Exception e){DbStatus.Text="Not connected: "+e.Message;AnswerText.Text="Unable to read the Consolidation database. "+e.Message;}}
+ private async void TestAiClick(object sender,RoutedEventArgs e)
+ {
+     AiStatus.Text = "Testing local Ollama...";
+     try { AiStatus.Text = await interpreter.TestConnection(CancellationToken.None); }
+     catch (Exception ex) { AiStatus.Text = "AI connection failed: " + ex.Message; }
+ }
  private void RefreshClick(object sender,RoutedEventArgs e)=>Refresh();
  private void AccountChanged(object sender,SelectionChangedEventArgs e){if(AnswerText!=null && AccountBox.SelectedItem is Account a)AnswerText.Text=$"Selected account: {a.Name}. Enter a question below.";}
- private async void AskClick(object sender,RoutedEventArgs e){if(AccountBox.SelectedItem is not Account account){AnswerText.Text="Select an account first.";return;}var question=QuestionBox.Text.Trim();if(question.Length==0)return;AskButton.IsEnabled=false;AnswerText.Text="Interpreting your question locally...";try{var intent=await interpreter.Interpret(question,CancellationToken.None);AnswerText.Text=Answer(account,intent);}catch(Exception ex){AnswerText.Text="Local AI request failed. Check that Ollama is running and qwen3:4b is installed.\n\n"+ex.Message;}finally{AskButton.IsEnabled=true;}}
+ private async void AskClick(object sender,RoutedEventArgs e){if(AccountBox.SelectedItem is not Account account){AnswerText.Text="Select an account first.";return;}var question=QuestionBox.Text.Trim();if(question.Length==0)return;AskButton.IsEnabled=false;AnswerText.Text="Interpreting your question locally...";try{var intent=await interpreter.Interpret(question,CancellationToken.None);AnswerText.Text=Answer(account,intent);}catch(Exception ex){AnswerText.Text="AI interpretation failed. Use Test AI connection to diagnose.\n\n"+ex.Message;}finally{AskButton.IsEnabled=true;}}
  private string Answer(Account a,QueryIntent i){var ops=new[]{"account_change","account_value","holding_change","holding_value"};if(!ops.Contains(i.operation))return "This question is not yet supported. No financial data was invented.";
  var end=ParseDate(i.end_date)??DateTime.Today;if(end>DateTime.Today)return "Future valuation dates are not supported.";
  bool holding=i.operation.StartsWith("holding_");var security=i.security?.Trim();if(holding && (string.IsNullOrWhiteSpace(security)||security.Length>100))return "I need a security name to answer that question.";

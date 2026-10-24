@@ -1,6 +1,6 @@
-# AskCons V0.1.2 — independent Windows application
+# AskCons V0.1.3 — independent Windows application
 
-Repository: **StockCons**. Application name: **AskCons**. Version **0.1.2**.
+Repository: **StockCons**. Application name: **AskCons**. Version **0.1.3**.
 
 ## Setup
 
@@ -8,10 +8,10 @@ Repository: **StockCons**. Application name: **AskCons**. Version **0.1.2**.
 2. Install Ollama and download the local model: `ollama pull qwen3:4b`.
 3. Configure `OLLAMA_HOST=127.0.0.1:11434` and `OLLAMA_NO_CLOUD=1`, restart Ollama. Optional: firewall block outbound Ollama connections after model download.
 4. Upload this source folder's **contents** to the root of your `StockCons` repository, branch `main`.
-5. GitHub Actions automatically builds on each push to `main`, or run it manually from Actions. Download the installer artifact `AskCons-Installer-0.1.2`, extract, run `AskCons-Setup-0.1.2.exe`.
+5. GitHub Actions automatically builds on each push to `main`, or run it manually from Actions. Download the installer artifact `AskCons-Installer-0.1.3`, extract, run `AskCons-Setup-0.1.3.exe`.
 6. AskCons reads `%LOCALAPPDATA%\Consolidation\consolidation.db` using SQLite `ReadOnly` mode and `PRAGMA query_only=ON`. It never invokes ConsolidationNG initialization or migrations, and never creates/modifies any database tables, indexes, rows, or files. No local answer history is saved.
 
-## V0.1.2 supported operations
+## V0.1.3 supported operations
 
 Natural-language account value, account change, holding value, and holding value change for one explicitly selected account. Dates resolve to available snapshots on/before the requested date; actual valuation dates are displayed. Account values use `Snapshots.LiquidAssetsIls`; holding values use `Holdings.ValueIls` from the latest account snapshot. No market prices are fetched and no actual investment P&L is claimed. A missing security in a snapshot is treated as missing data, not zero. Complex queries are declined rather than guessed.
 
@@ -28,5 +28,5 @@ Windows + .NET 8 SDK: `dotnet publish AskCons.csproj -c Release -r win-x64 --sel
 ## Startup diagnostics
 The main window is shown before any database query. Startup exceptions are displayed and logged at `%LOCALAPPDATA%\AskCons\startup-errors.log`. The portfolio database is never modified.
 
-## V0.1.2 startup and upgrade corrections
+## V0.1.3 startup and upgrade corrections
 Removed invalid `Icon="AskCons.ico"` from the WPF window XAML. The icon remains embedded in the Windows executable through `ApplicationIcon`; the in-window logo remains the packaged PNG resource. The installer retains the same `AppId` and installation directory and asks Windows/Inno Setup to close running AskCons instances before upgrading. Existing AskCons settings/logs and all ConsolidationNG data remain untouched. Installer downloads in Downloads are not automatically deleted.
