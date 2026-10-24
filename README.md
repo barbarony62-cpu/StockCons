@@ -1,6 +1,6 @@
-# AskCons V0.1.0 — independent Windows application
+# AskCons V0.1.1 — independent Windows application
 
-Repository: **StockCons**. Application name: **AskCons**. Version **0.1.0**.
+Repository: **StockCons**. Application name: **AskCons**. Version **0.1.1**.
 
 ## Setup
 
@@ -8,10 +8,10 @@ Repository: **StockCons**. Application name: **AskCons**. Version **0.1.0**.
 2. Install Ollama and download the local model: `ollama pull qwen3:4b`.
 3. Configure `OLLAMA_HOST=127.0.0.1:11434` and `OLLAMA_NO_CLOUD=1`, restart Ollama. Optional: firewall block outbound Ollama connections after model download.
 4. Upload this source folder's **contents** to the root of your `StockCons` repository, branch `main`.
-5. GitHub Actions automatically builds on each push to `main`, or run it manually from Actions. Download the installer artifact `AskCons-Installer-0.1.0`, extract, run `AskCons-Setup-0.1.0.exe`.
+5. GitHub Actions automatically builds on each push to `main`, or run it manually from Actions. Download the installer artifact `AskCons-Installer-0.1.1`, extract, run `AskCons-Setup-0.1.1.exe`.
 6. AskCons reads `%LOCALAPPDATA%\Consolidation\consolidation.db` using SQLite `ReadOnly` mode and `PRAGMA query_only=ON`. It never invokes ConsolidationNG initialization or migrations, and never creates/modifies any database tables, indexes, rows, or files. No local answer history is saved.
 
-## V0.1.0 supported operations
+## V0.1.1 supported operations
 
 Natural-language account value, account change, holding value, and holding value change for one explicitly selected account. Dates resolve to available snapshots on/before the requested date; actual valuation dates are displayed. Account values use `Snapshots.LiquidAssetsIls`; holding values use `Holdings.ValueIls` from the latest account snapshot. No market prices are fetched and no actual investment P&L is claimed. A missing security in a snapshot is treated as missing data, not zero. Complex queries are declined rather than guessed.
 
@@ -24,3 +24,6 @@ Ollama runs locally at `127.0.0.1:11434`; no cloud APIs in AskCons. No raw SQL g
 Windows + .NET 8 SDK: `dotnet publish AskCons.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish`. Inno Setup 6 builds `installer.iss` after publishing.
 
 **Verification:** Static checks run in GitHub Actions before build. The project has not been compiled or run on Windows in the authoring environment; the GitHub workflow is the compilation gate. Do not uninstall or replace ConsolidationNG.
+
+## Startup diagnostics
+The main window is shown before any database query. Startup exceptions are displayed and logged at `%LOCALAPPDATA%\AskCons\startup-errors.log`. The portfolio database is never modified.

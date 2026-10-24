@@ -1,17 +1,17 @@
 #define MyAppName "AskCons"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "0.1.1"
 [Setup]
 AppId={{7B61721B-6A3F-46E0-A0AE-1C724EF30C41}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
-AppVerName=AskCons V0.1.0
+AppVerName=AskCons V0.1.1
 AppPublisher=AskCons
 DefaultDirName={localappdata}\Programs\AskCons
 DefaultGroupName=AskCons
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=installer-output
-OutputBaseFilename=AskCons-Setup-0.1.0
+OutputBaseFilename=AskCons-Setup-0.1.1
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -22,7 +22,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
 [Files]
-Source: "publish\AskCons.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 [Icons]
 Name: "{group}\AskCons"; Filename: "{app}\AskCons.exe"
 Name: "{autodesktop}\AskCons"; Filename: "{app}\AskCons.exe"; Tasks: desktopicon
