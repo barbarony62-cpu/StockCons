@@ -12,4 +12,4 @@ assert '<ApplicationIcon>AskCons.ico</ApplicationIcon>' in csproj
 print("WPF window resources and XML validated")
 
 assert 'Test AI connection' in xaml
-print("AskCons 0.1.3 AI diagnostic UI verified")
+print("AskCons UI resource check verified")

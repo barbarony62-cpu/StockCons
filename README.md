@@ -1,16 +1,18 @@
-# AskCons V0.1.6
+# AskCons V0.3.0 — local financial query planning
 
-Complete independent .NET 8 WPF application. Build automatically on push to main via GitHub Actions.
+Independent WPF application. The ConsolidationNG SQLite database is opened strictly in read-only mode. No schema changes, migrations or writes to the financial database.
 
-## Changes
-- Enter asks; Shift+Enter inserts a newline.
-- Per-account local question history, clickable to re-ask.
-- Removed technical database/model details from sidebar.
-- Best/worst N holdings by **absolute NIS change in recorded holding values**, regardless of transactions. Defaults to year-to-date; missing holdings at a valid snapshot count as zero.
-- Uses only read-only SQLite connections, never writes to ConsolidationNG.
-- Ollama remains local.
+## Changes since 0.2.0
+- Extended the Qwen structured planner with composable conditions: beginning/ending value ranges, value changes, name filters, opening/ending presence, date intervals, sorting, ranking limits.
+- Added a strict C# QueryValidator. Unknown operations and unimplemented aggregation/grouping are rejected rather than silently ignored.
+- Removed heuristic question-pattern overrides for ranking and series selection; the structured planner is authoritative.
+- Existing table/chart rendering, keyboard shortcuts, question history and original icon retained.
+- Qwen runs locally via Ollama at 127.0.0.1:11434.
 
-**Interpretation caveat:** The rankings use all recorded holdings (including funds/bonds), not exclusively equities, because security classification varies. Values are not transaction-adjusted profits.
+## Known limitations
+This is a bounded composable query engine, **not unrestricted SQL generation**. Unimplemented operations are rejected. It does not classify securities as stock/fund/bond, explain market causality, compute transaction-adjusted returns, or combine multiple security lines on a single chart. Historical availability and security name matching depend on the existing DB. A 150-question regression suite is not yet implemented. Windows compilation and runtime testing are required.
 
-## Install
-Commit the entire extracted project to `StockCons/main`. Download the installer artifact from GitHub Actions.
+## Build
+`dotnet publish AskCons.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish`
+
+GitHub Actions builds the installer automatically on push to main.

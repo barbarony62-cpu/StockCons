@@ -75,4 +75,60 @@ public sealed class ReadOnlyPortfolio {
         }).ToList();
         return new HoldingRanking(first.Value.date, last.Value.date, items);
     }
+
+    // An exact snapshot is required for security presence checks; never confuse absence with zero.
+    public List<HoldingChange>? CurrentHoldings(long accountId, DateTime date)
+    {
+        var ranking = RankHoldingChanges(accountId, date, date);
+        return ranking?.Items;
+    }
+    public double? AccountTotalAt(long accountId, DateTime date) => AccountValue(accountId,date)?.Value;
+
+    // Only SELECT queries. One latest snapshot per valuation date, then the last available
+    // observation in each requested calendar bucket. No interpolation or fabricated values.
+    public SeriesResult? HistoricalSeries(long accountId, string? security, DateTime from, DateTime to, string interval)
+    {
+        using var c = Connect();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = security is null ? """
+            SELECT s.ValuationDate, s.LiquidAssetsIls FROM Snapshots s
+            WHERE s.AccountId=$a AND s.ValuationDate >= $from AND s.ValuationDate <= $to
+            AND s.LiquidAssetsIls IS NOT NULL
+            ORDER BY s.ValuationDate DESC, s.CapturedAt DESC, s.Id DESC
+            """ : """
+            SELECT s.ValuationDate,
+              COALESCE((SELECT SUM(h.ValueIls) FROM Holdings h WHERE h.SnapshotId=s.Id
+                AND (LOWER(h.Name) LIKE $term OR LOWER(COALESCE(h.Symbol,''))=$symbol)),0)
+            FROM Snapshots s
+            WHERE s.AccountId=$a AND s.ValuationDate >= $from AND s.ValuationDate <= $to
+            ORDER BY s.ValuationDate DESC, s.CapturedAt DESC, s.Id DESC
+            """;
+        cmd.Parameters.AddWithValue("$a",accountId);
+        cmd.Parameters.AddWithValue("$from",from.ToString("yyyy-MM-dd"));
+        cmd.Parameters.AddWithValue("$to",to.ToString("yyyy-MM-dd"));
+        if (security is not null)
+        {
+            cmd.Parameters.AddWithValue("$term","%"+security.ToLowerInvariant().Replace("%", "").Replace("_", "")+"%");
+            cmd.Parameters.AddWithValue("$symbol",security.ToLowerInvariant());
+        }
+        var dates = new HashSet<DateTime>();
+        var buckets = new Dictionary<DateTime,TimePoint>();
+        using var reader = cmd.ExecuteReader();
+        while(reader.Read())
+        {
+            var date = DateTime.Parse(reader.GetString(0));
+            if (!dates.Add(date)) continue; // newest capture wins for each date
+            var value = reader.IsDBNull(1) ? 0 : reader.GetDouble(1);
+            DateTime bucket = interval switch
+            {
+                "week" => date.Date.AddDays((6-(int)date.DayOfWeek+7)%7), // Saturday
+                "day" => date.Date,
+                _ => new DateTime(date.Year,date.Month,1)
+            };
+            if (!buckets.ContainsKey(bucket)) buckets[bucket] = new TimePoint(date,value);
+        }
+        if (buckets.Count == 0) return null;
+        var points = buckets.OrderBy(x=>x.Key).Select(x=>x.Value).ToList();
+        return new SeriesResult(security is null ? "Account value" : security,interval,points);
+    }
 }
