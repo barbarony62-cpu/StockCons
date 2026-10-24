@@ -32,7 +32,7 @@ public sealed class ReadOnlyPortfolio {
         if (first is null || last is null) return null;
         Dictionary<string,(string name,string symbol,double value)> ReadHoldings(long snapshotId)
         {
-            var data = new Dictionary<string,(string,string,double)>(StringComparer.OrdinalIgnoreCase);
+            var data = new Dictionary<string,(string name,string symbol,double value)>(StringComparer.OrdinalIgnoreCase);
             using var cmd = c.CreateCommand();
             cmd.CommandText = "SELECT Name, COALESCE(Symbol,''), ValueIls FROM Holdings WHERE SnapshotId=$s AND ValueIls IS NOT NULL";
             cmd.Parameters.AddWithValue("$s", snapshotId);
