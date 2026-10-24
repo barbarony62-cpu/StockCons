@@ -1,4 +1,4 @@
-# AskCons V0.3.0 — local financial query planning
+# AskCons V0.3.1 — local financial query planning
 
 Independent WPF application. The ConsolidationNG SQLite database is opened strictly in read-only mode. No schema changes, migrations or writes to the financial database.
 
@@ -16,3 +16,8 @@ This is a bounded composable query engine, **not unrestricted SQL generation**. 
 `dotnet publish AskCons.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish`
 
 GitHub Actions builds the installer automatically on push to main.
+
+## 0.3.1 hotfix
+- Normalize top/bottom portfolio ranking plans before validating single-security requirements.
+- Fix stale title bar version.
+- A stocks-only filter still requires verified classification; AskCons does not pretend funds are stocks.

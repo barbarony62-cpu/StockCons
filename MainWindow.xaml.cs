@@ -137,7 +137,8 @@ public partial class MainWindow : Window
         try
         {
             var intent = await interpreter.Interpret(question, CancellationToken.None);
-            var result = await Task.Run(() => Calculate(account, QueryValidator.Validate(intent), question));
+            var normalized = NormalizeQuestionIntent(intent, question);
+            var result = await Task.Run(() => Calculate(account, QueryValidator.Validate(normalized), question));
             RenderResult(result.Data, result.Subtitle, result.Note, result.Text);
         }
         catch (Exception ex) { ShowText("Question failed. Please retry or test the AI connection.\n\n" + ex.Message); }
@@ -150,6 +151,23 @@ public partial class MainWindow : Window
         }
     }
 
+    // Repair a known LLM planning failure: a top-N question targets the whole portfolio,
+    // never one individual security. Preserve all filters rather than discarding the plan.
+    private static QueryIntent NormalizeQuestionIntent(QueryIntent intent, string question)
+    {
+        if (LooksLikeRanking(question, out var worst) &&
+            (intent.operation is "holding_change" or "holding_value" or "holding_series" or "holding_share" or "unsupported"))
+        {
+            intent.operation = worst ? "bottom_holding_changes" : "top_holding_changes";
+            intent.security = null;
+            intent.entity = "holdings";
+            intent.sort_by = "change";
+            intent.sort_direction = worst ? "asc" : "desc";
+        }
+        if (LooksLikeRanking(question, out _) && (intent.operation is "top_holding_changes" or "bottom_holding_changes"))
+            intent.security = null;
+        return intent;
+    }
     private sealed record AnswerData(object Data, string Subtitle, string Note, string Text);
     private static DateTime? ParseDate(string? s) => DateTime.TryParseExact(s, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null;
     private static bool LooksLikeRanking(string q, out bool worst)
