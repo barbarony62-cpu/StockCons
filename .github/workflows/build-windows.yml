@@ -1,4 +1,4 @@
-name: Build AskCons V0.3.2 Installer
+name: Build AskCons V0.4.0 Installer
 on:
   push:
     branches: [main]
@@ -18,6 +18,8 @@ jobs:
         run: |
           python tools/verify_readonly.py
           python tools/verify_window_resources.py
+      - name: Run synthetic financial and conversation regression checks
+        run: dotnet run --project tests/AskCons.Tests.csproj -c Release
       - name: Publish Windows x64
         run: dotnet publish AskCons.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
       - name: Install Inno Setup
@@ -27,6 +29,8 @@ jobs:
         run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss'
       - uses: actions/upload-artifact@v4
         with:
-          name: AskCons-Installer-0.3.2
-          path: installer-output/AskCons-Setup-0.3.2.exe
+          name: AskCons-Installer-0.4.0
+          path: installer-output/AskCons-Setup-0.4.0.exe
           retention-days: 3
+
+

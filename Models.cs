@@ -3,6 +3,7 @@ public sealed record Account(long Id,string Name);
 public sealed record Valuation(DateTime Date,double Value);
 public sealed class QueryIntent
 {
+ public string action {get;set;}="execute"; public string? clarification {get;set;} public string? interpretation {get;set;}
  public string operation {get;set;}="unsupported";
  public string? security {get;set;}
  public string? start_date {get;set;}
@@ -31,9 +32,12 @@ public sealed class QueryIntent
  public bool? require_present_at_end {get;set;}
  public string? unsupported_reason {get;set;}
 }
-public sealed record HoldingChange(string Name,string Symbol,double StartValue,double EndValue,double Change);
+public sealed record HoldingChange(string Name,string Symbol,double StartValue,double EndValue,double Change,bool PresentAtStart=true,bool PresentAtEnd=true);
 public sealed record HoldingRanking(DateTime StartDate,DateTime EndDate,List<HoldingChange> Items);
 public sealed record TimePoint(DateTime Date,double Value);
 public sealed record SeriesResult(string Label, string Interval, List<TimePoint> Points);
-public sealed class RankingRow { public int Rank {get;set;} public string Security {get;set;}=""; public double Start {get;set;} public double End {get;set;} public double Change {get;set;} }
+public sealed class RankingRow { public string SecurityKey {get;set;}=""; public int Rank {get;set;} public string Security {get;set;}=""; public double Start {get;set;} public double End {get;set;} public double Change {get;set;} }
 public sealed class SeriesRow { public string Period {get;set;}=""; public DateTime Date {get;set;} public double Value {get;set;} }
+
+
+

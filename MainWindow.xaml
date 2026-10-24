@@ -1,4 +1,4 @@
-<Window x:Class="AskCons.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="AskCons V0.3.2" WindowState="Maximized" MinWidth="950" MinHeight="650" Background="#F5F8FD" FontFamily="Segoe UI">
+<Window x:Class="AskCons.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="AskCons V0.4.0" WindowState="Maximized" MinWidth="950" MinHeight="650" Background="#F5F8FD" FontFamily="Segoe UI">
 <Grid>
  <Grid.RowDefinitions><RowDefinition Height="92"/><RowDefinition Height="*"/><RowDefinition Height="112"/></Grid.RowDefinitions>
  <Border Grid.Row="0" Background="#0C3265" Padding="20,10"><StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -14,7 +14,7 @@
    <Button Grid.Row="4" Content="Test AI connection" Padding="8" Margin="0,14,0,0" Click="TestAiClick"/>
    <TextBlock Grid.Row="5" x:Name="AiStatus" Margin="0,8,0,0" TextWrapping="Wrap" Foreground="#173D70"/>
   </Grid></Border>
-  <Border Grid.Column="1" Background="White" CornerRadius="12" Padding="24"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+  <Border Grid.Column="1" Background="White" CornerRadius="12" Padding="24"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="1.2*"/></Grid.RowDefinitions>
    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
     <TextBlock x:Name="AnswerHeading" Text="Ask about your investments" FontSize="23" FontWeight="SemiBold" VerticalAlignment="Center"/>
     <Button x:Name="ShowDataButton" Grid.Column="1" Content="Show data table" Padding="12,6" Click="ToggleDataClick" Visibility="Collapsed"/>
@@ -25,11 +25,12 @@
     <DataGrid x:Name="ResultsGrid" Visibility="Collapsed" IsReadOnly="True" AutoGenerateColumns="False" CanUserSortColumns="True" CanUserAddRows="False" CanUserDeleteRows="False" HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeight="37" FontSize="15" BorderThickness="0" AlternatingRowBackground="#F2F7FD" ColumnHeaderHeight="40" SelectionMode="Single" />
     <Grid x:Name="ChartHost" Visibility="Collapsed" Background="White" SizeChanged="ChartSizeChanged"><Canvas x:Name="PlotCanvas" ClipToBounds="True"/></Grid>
    </Grid>
+   <ScrollViewer Grid.Row="4" x:Name="ConversationScroll" VerticalScrollBarVisibility="Auto" Margin="0,12,0,0"><StackPanel x:Name="Transcript"/></ScrollViewer>
    <TextBlock Grid.Row="3" x:Name="AnswerNote" Margin="0,12,0,0" Foreground="#62758B" FontSize="12" TextWrapping="Wrap"/>
   </Grid></Border>
  </Grid>
  <Border Grid.Row="2" Background="White" Padding="22,14"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-  <StackPanel Orientation="Horizontal" Grid.ColumnSpan="2" Margin="0,0,0,7"><TextBlock Text="Display:" VerticalAlignment="Center" Foreground="#425773" Margin="0,0,8,0"/><ComboBox x:Name="DisplayModeBox" Width="140" SelectionChanged="DisplayModeChanged"><ComboBoxItem Content="Automatic" IsSelected="True"/><ComboBoxItem Content="Table"/><ComboBoxItem Content="Graph"/><ComboBoxItem Content="Text"/></ComboBox></StackPanel>
+  <StackPanel Orientation="Horizontal" Grid.ColumnSpan="2" Margin="0,0,0,7"><Button Content="New conversation" Click="NewConversationClick" Padding="8,2" Margin="0,0,10,0"/><Button x:Name="CancelButton" Content="Cancel" Click="CancelClick" IsEnabled="False" Padding="8,2" Margin="0,0,14,0"/><TextBlock Text="Display:" VerticalAlignment="Center" Foreground="#425773" Margin="0,0,8,0"/><ComboBox x:Name="DisplayModeBox" Width="140" SelectionChanged="DisplayModeChanged"><ComboBoxItem Content="Automatic" IsSelected="True"/><ComboBoxItem Content="Table"/><ComboBoxItem Content="Graph"/><ComboBoxItem Content="Text"/></ComboBox></StackPanel>
   <TextBox Grid.Row="1" x:Name="QuestionBox" FontSize="16" Padding="10" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" ToolTip="Enter = Ask; Shift+Enter = new line" PreviewKeyDown="QuestionKeyDown"/>
   <Button Grid.Row="1" Grid.Column="1" x:Name="AskButton" Content="Ask →" Margin="14,0,0,0" FontSize="18" FontWeight="Bold" Foreground="White" Background="#0754A4" Click="AskClick"/>
  </Grid></Border>
