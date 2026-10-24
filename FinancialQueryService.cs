@@ -21,6 +21,11 @@ public sealed class FinancialQueryService(ReadOnlyPortfolio db) {
         {
             var worst = intent.operation == "bottom_holding_changes";
             bool openingOnly = intent.present_at_start == true || intent.operation == "holdings_disappeared";
+            if (intent.first_recorded_start) {
+                var first = db.FirstSnapshotDate(account.Id, start, end);
+                if (first == null) return Failure("No snapshots exist in the requested period.");
+                start = first.Value;
+            }
             var ranking = db.RankHoldingChanges(account.Id, start, end, openingOnly);
             if (ranking == null) return Failure("No saved snapshots are available for both dates.");
             int count = intent.limit ?? (intent.operation is "holdings_list" or "holdings_filter" or "holdings_disappeared" ? 100 : 5);
@@ -54,7 +59,8 @@ public sealed class FinancialQueryService(ReadOnlyPortfolio db) {
             var rows = filtered.Take(count).Select((x, i) => new RankingRow { Rank = i + 1, Security = x.Name, SecurityKey = string.IsNullOrWhiteSpace(x.Symbol) ? x.Name : x.Symbol, Start = x.StartValue, End = x.EndValue, Change = x.Change }).ToList();
             if (rows.Count == 0) return Failure("No holdings qualify for the selected period and opening-date restriction.");
             string subtitle = $"{account.Name}  ·  {ranking.StartDate:dd MMM yyyy} – {ranking.EndDate:dd MMM yyyy}  ·  NIS";
-            string note = (openingOnly ? "Only securities present in the opening snapshot.  " : "") + "Recorded holding-value changes; purchases and sales are not adjusted. Includes all recorded security types (stocks, funds and bonds); stock-only classification is not available.";
+            var sortLabel = sort switch { "change" => "recorded value change", "start_value" => "opening holding value", "end_value" => "ending holding value", _ => "security name" };
+            string note = $"Sorted by {sortLabel}, {(asc ? "ascending" : "descending")}. " + (openingOnly ? "Only securities present in the opening snapshot.  " : "") + "Recorded holding-value changes; purchases and sales are not adjusted. Includes all recorded security types (stocks, funds and bonds); stock-only classification is not available.";
             string text = string.Join("\n", rows.Select(x => $"{x.Rank}. {x.Security}: {x.Start:N2} → {x.End:N2} NIS; change {x.Change:+#,##0.00;-#,##0.00;0.00} NIS"));
             return new AnswerData(rows, subtitle, note, text);
         }
@@ -105,6 +111,7 @@ public sealed class FinancialQueryService(ReadOnlyPortfolio db) {
     private static AnswerData Plain(string text) => new(text, "", "", text);
 
 }
+
 
 
 

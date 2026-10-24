@@ -47,7 +47,7 @@ public static class QueryValidator
         bool ranking = plan.operation is "top_holding_changes" or "bottom_holding_changes" or "holdings_filter" or "holdings_list" or "holdings_disappeared";
         if (ranking && !string.IsNullOrWhiteSpace(plan.security))
             throw new ArgumentException("Use name_contains to filter a holdings list.");
-        if (!ranking && (plan.present_at_start == true || plan.absent_at_end == true || plan.require_present_at_end == true ||
+        if (!ranking && (plan.first_recorded_start || plan.present_at_start == true || plan.absent_at_end == true || plan.require_present_at_end == true ||
             plan.minimum_change_nis != null || plan.maximum_change_nis != null || plan.minimum_start_value_nis != null ||
             plan.maximum_start_value_nis != null || plan.minimum_end_value_nis != null || plan.maximum_end_value_nis != null ||
             plan.name_contains != null || plan.direction is "gain" or "loss" || plan.sort_by != null || plan.sort_direction != null || plan.limit != null))
@@ -67,6 +67,12 @@ public static class QueryValidator
         var end = DateTime.ParseExact(plan.end_date, "yyyy-MM-dd", CultureInfo.InvariantCulture);
         if (start > end || end > DateTime.Today)
             throw new ArgumentException("Choose a valid period ending no later than today.");
+        if (plan.operation is "top_holding_changes" or "bottom_holding_changes") {
+            var expected = plan.operation == "top_holding_changes" ? "desc" : "asc";
+            if (plan.sort_by is not (null or "change") || plan.sort_direction != null && plan.sort_direction != expected)
+                throw new ArgumentException("A value-change ranking must be sorted by value change in the requested direction.");
+            plan.sort_by = "change"; plan.sort_direction = expected;
+        }
         return plan;
     }
     private static bool In(string? value, params string[] allowed) => value == null || Array.IndexOf(allowed, value) >= 0;

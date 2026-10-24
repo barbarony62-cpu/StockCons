@@ -5,10 +5,10 @@ public sealed class ReadOnlyPortfolio {
  public static string DefaultPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Consolidation","consolidation.db");
  private readonly string path;
  public ReadOnlyPortfolio(string? path=null){this.path=path??DefaultPath;}
- private SqliteConnection Connect(){if(!File.Exists(path))throw new FileNotFoundException("Consolidation database was not found",path);var cs=new SqliteConnectionStringBuilder{DataSource=path,Mode=SqliteOpenMode.ReadOnly,Cache=SqliteCacheMode.Private,Pooling=false}.ToString();var c=new SqliteConnection(cs);c.Open();using var cmd=c.CreateCommand();cmd.CommandText="PRAGMA query_only=ON";cmd.ExecuteNonQuery();return c;}
+ private SqliteConnection Connect(){if(!File.Exists(path))throw new FileNotFoundException("Consolidation database was not found",path);var cs=new SqliteConnectionStringBuilder{DataSource=path,Mode=SqliteOpenMode.ReadOnly,Cache=SqliteCacheMode.Private,Pooling=false}.ToString();var c=new SqliteConnection(cs);c.Open();c.CreateFunction<string, string, bool>("askcons_summary", HoldingIdentity.IsSummaryLabel, isDeterministic:true);using var cmd=c.CreateCommand();cmd.CommandText="PRAGMA query_only=ON";cmd.ExecuteNonQuery();return c;}
  public List<SecurityCandidate> ResolveSecurity(long accountId, string term) {
     using var c=Connect(); using var cmd=c.CreateCommand();
-    cmd.CommandText="SELECT DISTINCT h.Name, COALESCE(h.Symbol,'') FROM Holdings h JOIN Snapshots s ON s.Id=h.SnapshotId WHERE s.AccountId=$a";
+    cmd.CommandText="SELECT DISTINCT h.Name, COALESCE(h.Symbol,'') FROM Holdings h JOIN Snapshots s ON s.Id=h.SnapshotId WHERE s.AccountId=$a AND NOT askcons_summary(h.Name, COALESCE(h.Symbol,''))";
     cmd.Parameters.AddWithValue("$a",accountId);
     using var r=cmd.ExecuteReader(); var all=new List<SecurityCandidate>();
     while(r.Read()) all.Add(new(r.GetString(0),r.GetString(1)));
@@ -19,7 +19,7 @@ public sealed class ReadOnlyPortfolio {
     using var c=Connect(); using var cmd=c.CreateCommand();
     cmd.CommandText="""
     SELECT s.ValuationDate, s.LiquidAssetsIls,
-      (SELECT SUM(h.ValueIls) FROM Holdings h WHERE h.SnapshotId=s.Id
+      (SELECT SUM(h.ValueIls) FROM Holdings h WHERE h.SnapshotId=s.Id AND NOT askcons_summary(h.Name, COALESCE(h.Symbol,''))
         AND (LOWER(h.Name)=$q OR LOWER(COALESCE(h.Symbol,''))=$q))
     FROM Snapshots s WHERE s.AccountId=$a AND s.ValuationDate<=$d
     ORDER BY s.ValuationDate DESC,s.CapturedAt DESC,s.Id DESC LIMIT 1
@@ -36,7 +36,7 @@ public sealed class ReadOnlyPortfolio {
  SELECT s.ValuationDate, SUM(h.ValueIls) FROM Snapshots s JOIN Holdings h ON h.SnapshotId=s.Id
  WHERE s.Id=(SELECT s2.Id FROM Snapshots s2 WHERE s2.AccountId=$a AND s2.ValuationDate<=$d ORDER BY s2.ValuationDate DESC,s2.CapturedAt DESC,s2.Id DESC LIMIT 1)
  AND (LOWER(h.Name) = $q OR LOWER(COALESCE(h.Symbol,''))=$symbol)
- AND h.ValueIls IS NOT NULL GROUP BY s.ValuationDate
+ AND NOT askcons_summary(h.Name, COALESCE(h.Symbol,'')) AND h.ValueIls IS NOT NULL GROUP BY s.ValuationDate
  """;cmd.Parameters.AddWithValue("$a",id);cmd.Parameters.AddWithValue("$d",date.ToString("yyyy-MM-dd"));cmd.Parameters.AddWithValue("$q",term.ToLowerInvariant());cmd.Parameters.AddWithValue("$symbol",term.ToLowerInvariant());using var rd=cmd.ExecuteReader();return rd.Read() && !rd.IsDBNull(1)?new Valuation(DateTime.Parse(rd.GetString(0)),rd.GetDouble(1)):null;}
     // The earliest recorded snapshot within the requested calendar period.
     public DateTime? FirstSnapshotDate(long accountId, DateTime from, DateTime to)
@@ -70,7 +70,7 @@ public sealed class ReadOnlyPortfolio {
         {
             var data = new Dictionary<string,(string name,string symbol,double value)>(StringComparer.OrdinalIgnoreCase);
             using var cmd = c.CreateCommand();
-            cmd.CommandText = "SELECT Name, COALESCE(Symbol,''), ValueIls FROM Holdings WHERE SnapshotId=$s";
+            cmd.CommandText = "SELECT Name, COALESCE(Symbol,''), ValueIls FROM Holdings WHERE SnapshotId=$s AND NOT askcons_summary(Name, COALESCE(Symbol,''))";
             cmd.Parameters.AddWithValue("$s", snapshotId);
             using var r = cmd.ExecuteReader();
             while(r.Read())
@@ -122,7 +122,7 @@ public sealed class ReadOnlyPortfolio {
             ORDER BY s.ValuationDate DESC, s.CapturedAt DESC, s.Id DESC
             """ : """
             SELECT s.ValuationDate,
-              (SELECT SUM(h.ValueIls) FROM Holdings h WHERE h.SnapshotId=s.Id
+              (SELECT SUM(h.ValueIls) FROM Holdings h WHERE h.SnapshotId=s.Id AND NOT askcons_summary(h.Name, COALESCE(h.Symbol,''))
                 AND (LOWER(h.Name) = $term OR LOWER(COALESCE(h.Symbol,''))=$symbol))
             FROM Snapshots s
             WHERE s.AccountId=$a AND s.ValuationDate >= $from AND s.ValuationDate <= $to
@@ -158,6 +158,7 @@ public sealed class ReadOnlyPortfolio {
         return new SeriesResult(security is null ? "Account value" : security,interval,points);
     }
 }
+
 
 
 

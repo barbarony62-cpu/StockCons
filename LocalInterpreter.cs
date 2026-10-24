@@ -57,6 +57,9 @@ public sealed class LocalInterpreter
             A series defaults to presentation=graph unless a table or text was requested.
             Explicit ordinal reference resolved by application: {{session.ResolveReference(question) ?? "none"}}.
             Use that security exactly when supplied, retaining previous dates unless changed.
+            "First recorded day in a period" means first_recorded_start=true.
+            If holdings must have existed then, also set present_at_start=true.
+            Top/bottom value-change operations must sort by change descending/ascending respectively.
             Fields and types are defined in the schema. All monetary values are NIS.
             Dates are yyyy-MM-dd. Default period is Jan 1 this year through today.
             For a past named year use Jan 1 through Dec 31. Rolling months use calendar months.

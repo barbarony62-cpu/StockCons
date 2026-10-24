@@ -172,6 +172,11 @@ public partial class MainWindow : Window
         void Reply(string text) { AddTurn(session, "AskCons", text); ShowText(text); }
         try
         {
+            if (QuestionPolicy.NeedsMetricClarification(question)) {
+                session.PendingQuestion = question;
+                Reply(QuestionPolicy.MetricQuestion);
+                return;
+            }
             var intent = await interpreter.Interpret(question, session, token);
             token.ThrowIfCancellationRequested();
             if (!Active()) return;

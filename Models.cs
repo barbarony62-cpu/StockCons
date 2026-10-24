@@ -3,6 +3,7 @@ public sealed record Account(long Id,string Name);
 public sealed record Valuation(DateTime Date,double Value);
 public sealed class QueryIntent
 {
+ public bool first_recorded_start {get;set;}
  public string action {get;set;}="execute"; public string? clarification {get;set;} public string? interpretation {get;set;}
  public string operation {get;set;}="unsupported";
  public string? security {get;set;}

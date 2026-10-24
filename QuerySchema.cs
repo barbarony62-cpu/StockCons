@@ -16,7 +16,7 @@ public static class QuerySchema
   var holdingSeries=Common(new[]{"holding_series"}); holdingSeries["security"]=Text(); holdingSeries["interval"]=Choice("day","week","month");
   var rankings=Common(new[]{"top_holding_changes","bottom_holding_changes","holdings_list","holdings_filter","holdings_disappeared"});
   rankings["limit"]=new {type="integer",minimum=1,maximum=100};
-  foreach(var name in new[]{"present_at_start","absent_at_end","require_present_at_end"}) rankings[name]=new {type="boolean"};
+  foreach(var name in new[]{"first_recorded_start","present_at_start","absent_at_end","require_present_at_end"}) rankings[name]=new {type="boolean"};
   foreach(var name in new[]{"minimum_change_nis","maximum_change_nis","minimum_start_value_nis","maximum_start_value_nis","minimum_end_value_nis","maximum_end_value_nis"}) rankings[name]=new {type="number"};
   rankings["name_contains"]=Text(); rankings["direction"]=Choice("gain","loss","all");
   rankings["sort_by"]=Choice("change","start_value","end_value","name"); rankings["sort_direction"]=Choice("asc","desc");

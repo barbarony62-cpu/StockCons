@@ -1,16 +1,9 @@
-# Validation — AskCons V0.4.0
+# AskCons V0.4.1 validation
 
-Validated on Windows on 24 October 2026.
+The screenshot exposed a portfolio summary being treated as a security and a ranking whose order did not match value change. Synthetic fixtures now include Hebrew summary rows with differing punctuation, a genuine TotalEnergies holding, and a first-in-period snapshot after the requested January 1 boundary.
 
-- Release compilation succeeded.
-- 29 synthetic regression checks passed. They cover security ambiguity, exact ticker matching, account scoping, snapshot ordering, missing historical data, aligned share valuations, sorting, unsupported/contradictory filters, percentage changes, presence versus zero, conversation context, ordinal references, planner message separation, clarification, cancellation, loopback restrictions and unchanged database bytes.
-- Compiled WPF window constructed and laid out at 1280 x 900; a rendered preview was inspected.
-- Existing read-only and WPF resource source checks passed.
-- Three optional live Qwen3 4B smoke checks passed using only synthetic context: a two-item recorded value-change ranking, a monthly graph of the second item retaining the period, and clarification of a profit question.
-- Earlier live runs exposed malformed plans, lost ordinal context, missing result limits and incorrect presentation. These led to operation-specific schema constraints, required parameters and explicit reference context.
-- Self-contained win-x64 portable application published successfully.
+38 regression checks passed, including summary exclusion across all security query paths, unchanged account totals, ranking order, metric clarification for the exact screenshot question, first-recorded-day membership and unchanged database bytes. The WPF window is constructed and laid out by the regression runner.
 
-The live checks are a narrow smoke test, not a broad accuracy benchmark. No real portfolio was used for tests. Production database compatibility has not been exercised against your actual records, and the Inno Setup installer has not been run locally. The included GitHub workflow builds that installer after the regression checks.
+Release Windows x64 compilation and self-contained publication were checked locally. The earlier V0.4.0 live-model smoke tests were not rerun for this hotfix. No real financial database was inspected or modified. The installer itself is built by the included GitHub workflow; the portable EXE is supplied separately.
 
-Current limits: snapshot value analysis; no transaction-adjusted investment returns, classification, market causality or multi-security charts. Conversations remain in memory for this run. Inspect actual snapshot dates on financial answers.
-
+Summary identification is limited to the explicit normalized labels in HoldingIdentity.cs. There is no authoritative row-type field in the currently supported adapter.

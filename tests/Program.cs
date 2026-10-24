@@ -20,13 +20,17 @@ internal static class Program {
     CREATE TABLE Accounts(Id INTEGER, FriendlyName TEXT);
     CREATE TABLE Snapshots(Id INTEGER, AccountId INTEGER, ValuationDate TEXT, CapturedAt TEXT, LiquidAssetsIls REAL);
     CREATE TABLE Holdings(SnapshotId INTEGER, Name TEXT, Symbol TEXT, ValueIls REAL);
-    INSERT INTO Accounts VALUES(1,'Synthetic A'),(2,'Synthetic B');
+    INSERT INTO Accounts VALUES(1,'Synthetic A'),(2,'Synthetic B'),(3,'Baseline test');
     INSERT INTO Snapshots VALUES(1,1,'2025-01-01','01',1000),(2,1,'2025-09-30','01',1800),
     (3,2,'2025-09-30','01',90000),(4,1,'2025-09-30','02',2000),(5,1,'2025-10-01','01',NULL);
     INSERT INTO Holdings VALUES(1,'Tesla Inc','TSLA',100),(1,'Tesla Bond','TB',200),
     (2,'Tesla Inc','TSLA',200),(4,'Tesla Inc','TSLA',300),(4,'Tesla Bond','TB',100),
     (3,'Private B','PB',90000),(5,'Tesla Inc','TSLA',350),
-    (1,'Zero Position','ZERO',0),(4,'Zero Position','ZERO',0),(1,'Closed Position','CLOSED',50);
+    (1,'Zero Position','ZERO',0),(4,'Zero Position','ZERO',0),(1,'Closed Position','CLOSED',50),
+    (1,'סה"כ','',1000000),(4,'סה״כ:','',3000000),
+    (1,'TotalEnergies SE','TTE',50),(4,'TotalEnergies SE','TTE',75);
+    INSERT INTO Snapshots VALUES(6,3,'2024-12-31','01',100),(7,3,'2025-01-03','01',110),(8,3,'2025-09-30','01',130);
+    INSERT INTO Holdings VALUES(6,'Old Only','OLD',10),(7,'Opening Holding','OPEN',100),(8,'Opening Holding','OPEN',120);
     """;
     cmd.ExecuteNonQuery();
    }
@@ -60,6 +64,17 @@ internal static class Program {
    var accountChange=service.Calculate(new(1,"A"),new QueryIntent{operation="account_change",start_date="2025-01-01",end_date="2025-09-30"});
    Check(accountChange.Success && accountChange.Text.Contains("+100.00%"),"Account value doubles: percentage change is 100 percent");
    Reject(()=>QueryValidator.Validate(new(){operation="holdings_filter",absent_at_end=true,require_present_at_end=true}),"Reject contradictory presence restrictions");
+   Check(QuestionPolicy.NeedsMetricClarification("Give me the best 5 holdings from a NIS perspective in 2026, provided that the stocks existed on the first recorded day in 2026."),"Screenshot question requires metric clarification");
+   Check(!QuestionPolicy.NeedsMetricClarification("Show Best Buy") && !HoldingIdentity.IsSummaryLabel("TotalEnergies SE") && !HoldingIdentity.IsSummaryLabel("Total","FP"),"Real company names are not classified by substring");
+   Check(HoldingIdentity.IsSummaryLabel("סה״כ:") && HoldingIdentity.IsSummaryLabel("סה\"כ") && HoldingIdentity.IsSummaryLabel("Grand total"),"Summary punctuation and Hebrew quote variants recognized");
+   Check(db.ResolveSecurity(1,"סה").Count==0 && db.HoldingValue(1,"סה\"כ",end)==null && db.HoldingShare(1,"סה\"כ",end)==null,"Totals excluded from resolution, valuation and share");
+   Check(db.HistoricalSeries(1,"סה\"כ",new(2025,1,1),end,"month")==null,"Totals excluded from security history");
+   var top=(List<RankingRow>)service.Calculate(new(1,"A"),new QueryIntent{operation="top_holding_changes",start_date="2025-01-01",end_date="2025-09-30",limit=5}).Data;
+   Check(top.All(x=>!HoldingIdentity.IsSummaryLabel(x.Security)) && top.First().SecurityKey=="TSLA" && top.Zip(top.Skip(1)).All(pair=>pair.First.Change>=pair.Second.Change),"Only real holdings ranked in descending value-change order");
+   Check(db.AccountValue(1,end)!.Value==2000,"Summary exclusion does not remove the account total");
+   Reject(()=>QueryValidator.Validate(new(){operation="top_holding_changes",sort_by="start_value"}),"Reject top-change plan sorted by position size");
+   var opening=service.Calculate(new(3,"Baseline"),new QueryIntent{operation="top_holding_changes",start_date="2025-01-01",end_date="2025-09-30",first_recorded_start=true,present_at_start=true});
+   Check(opening.Success && ((List<RankingRow>)opening.Data).Single().SecurityKey=="OPEN" && opening.Subtitle.Contains("03 Jan 2025"),"First recorded in-period snapshot defines opening membership");
    var session=new ConversationSession(); var plan=Rank("change","desc");
    session.Commit(plan,"Verified result",new[]{"TSLA","TB"}); plan.end_date="2020-01-01";
    Check(session.LastPlan!.end_date=="2025-09-30","Committed context is immutable from caller");
@@ -128,6 +143,7 @@ internal static class Program {
   }
  }
 }
+
 
 
 

@@ -1,4 +1,13 @@
-# AskCons V0.4.0 — conversational local portfolio queries
+# AskCons V0.4.1 — conversational local portfolio queries
+
+## V0.4.1 correction
+- Recognized Hebrew/English summary labels (including סה"כ and סה״כ:) are excluded from security resolution, valuations, shares, rankings and security history. The separate account-total query is unchanged.
+- Exact normalized labels are used, not substring matching. TotalEnergies remains a security; a ticker-qualified "Total" is preserved.
+- Ambiguous "best/worst holdings" questions ask for the metric before querying.
+- Top/bottom value-change plans cannot sort by opening/ending position size.
+- Results disclose their actual sort field and direction.
+- first_recorded_start selects the first saved snapshot inside the requested range; present_at_start applies membership there.
+- 38 regression checks cover these corrections alongside the earlier checks.
 
 ## Run on Windows
 Extract the portable ZIP into a new folder and run AskCons.exe.
@@ -60,5 +69,6 @@ Optional local model smoke test (uses synthetic context only):
 The console regression runner uses a temporary synthetic SQLite database, checks read-only behavior with a file hash, exercises the planner through a fake HTTP handler, and constructs/layouts the compiled WPF controls. The optional live test checks a ranking, ordinal follow-up and profit ambiguity against the locally installed model; it is a smoke test, not an accuracy benchmark.
 
 GitHub Actions runs the regression runner before publishing and builds the Inno Setup installer. Upload the entire source project including .github, tests and tools to the repository.
+
 
 
