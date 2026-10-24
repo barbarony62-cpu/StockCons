@@ -23,7 +23,7 @@ public partial class MainWindow : Window
     private readonly LocalInterpreter interpreter = new();
     private readonly ObservableCollection<string> questions = new();
     private readonly Dictionary<string, List<string>> saved = new();
-    private static readonly string HistoryPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AskCons", "questions.json");
+    private static readonly string HistoryPath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AskCons", "questions.json");
     private bool loadingHistory;
     private bool isAsking;
     private List<TimePoint>? chartPoints;
@@ -73,7 +73,7 @@ public partial class MainWindow : Window
         if (list.Count > 100) list.RemoveRange(100, list.Count - 100);
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(HistoryPath)!);
+            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(HistoryPath)!);
             File.WriteAllText(HistoryPath, JsonSerializer.Serialize(saved));
         }
         catch { /* History is optional. */ }
@@ -228,7 +228,6 @@ public partial class MainWindow : Window
             return new AnswerData(rows, subtitle, note, text);
         }
 
-        var qInterval = false;
         var interval = intent.interval ?? "month";
         bool seriesRequested = intent.operation is "holding_series" or "account_series";
         if (seriesRequested)
