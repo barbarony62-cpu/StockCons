@@ -2,7 +2,7 @@ using System.Text.Json;
 namespace AskCons;
 public static class QuerySchema
 {
- public static JsonElement Build() {
+ public static JsonElement Build(string? requiredOperation=null,bool includeHistoryDates=true) {
   object Text()=>new {type="string"};
   object Choice(params string[] values)=>new {type="string",@enum=values};
   Dictionary<string,object> Common(string[] operations) => new() {
@@ -25,7 +25,19 @@ public static class QuerySchema
     ["action"]=Choice("clarify","explain","unsupported"),["operation"]=Choice("unsupported"),
     ["clarification"]=Text(),["unsupported_reason"]=Text()
   };
+  var firstOwned=new Dictionary<string,object> { ["action"]=Choice("execute"),["operation"]=Choice("holding_first_owned"),["security"]=Text() };
+  var history=new Dictionary<string,object> { ["action"]=Choice("execute"),["operation"]=Choice("holding_history","holding_quantity_history"),["security"]=Text(),
+    ["start_date"]=Text(),["end_date"]=Text(),["presentation"]=Choice("auto","table","text") };
+  if(!includeHistoryDates) { history.Remove("start_date"); history.Remove("end_date"); }
+  var firstBranch=Branch(firstOwned,"action","operation","security");
+  var historyBranch=Branch(history,"action","operation","security");
+  if(requiredOperation!=null) {
+    var specific=requiredOperation=="holding_first_owned"?firstOwned:history;
+    specific["operation"]=Choice(requiredOperation);
+    return JsonSerializer.SerializeToElement(new {anyOf=new[]{Branch(specific,"action","operation","security"),Branch(other,"action","operation")}});
+  }
   return JsonSerializer.SerializeToElement(new {anyOf=new[] {
+   firstBranch,historyBranch,
    Branch(account,"action","operation","start_date","end_date"),
    Branch(holding,"action","operation","security","start_date","end_date"),
    Branch(accountSeries,"action","operation","start_date","end_date","interval","presentation"),

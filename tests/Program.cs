@@ -19,18 +19,32 @@ internal static class Program {
     c.Open(); using var cmd=c.CreateCommand(); cmd.CommandText="""
     CREATE TABLE Accounts(Id INTEGER, FriendlyName TEXT);
     CREATE TABLE Snapshots(Id INTEGER, AccountId INTEGER, ValuationDate TEXT, CapturedAt TEXT, LiquidAssetsIls REAL);
-    CREATE TABLE Holdings(SnapshotId INTEGER, Name TEXT, Symbol TEXT, ValueIls REAL);
+    CREATE TABLE Holdings(SnapshotId INTEGER, Name TEXT, Symbol TEXT, ValueIls REAL, Quantity REAL);
+    CREATE TABLE SecurityHistoryEvents(Id INTEGER PRIMARY KEY,AccountId INTEGER,FromDate TEXT,ToDate TEXT,Name TEXT,Symbol TEXT,FromQuantity REAL,ToQuantity REAL,EventType TEXT,Source TEXT);
     INSERT INTO Accounts VALUES(1,'Synthetic A'),(2,'Synthetic B'),(3,'Baseline test');
     INSERT INTO Snapshots VALUES(1,1,'2025-01-01','01',1000),(2,1,'2025-09-30','01',1800),
     (3,2,'2025-09-30','01',90000),(4,1,'2025-09-30','02',2000),(5,1,'2025-10-01','01',NULL);
-    INSERT INTO Holdings VALUES(1,'Tesla Inc','TSLA',100),(1,'Tesla Bond','TB',200),
+    INSERT INTO Holdings(SnapshotId,Name,Symbol,ValueIls) VALUES(1,'Tesla Inc','TSLA',100),(1,'Tesla Bond','TB',200),
     (2,'Tesla Inc','TSLA',200),(4,'Tesla Inc','TSLA',300),(4,'Tesla Bond','TB',100),
     (3,'Private B','PB',90000),(5,'Tesla Inc','TSLA',350),
     (1,'Zero Position','ZERO',0),(4,'Zero Position','ZERO',0),(1,'Closed Position','CLOSED',50),
     (1,'סה"כ','',1000000),(4,'סה״כ:','',3000000),
     (1,'TotalEnergies SE','TTE',50),(4,'TotalEnergies SE','TTE',75);
     INSERT INTO Snapshots VALUES(6,3,'2024-12-31','01',100),(7,3,'2025-01-03','01',110),(8,3,'2025-09-30','01',130);
-    INSERT INTO Holdings VALUES(6,'Old Only','OLD',10),(7,'Opening Holding','OPEN',100),(8,'Opening Holding','OPEN',120);
+    INSERT INTO Holdings(SnapshotId,Name,Symbol,ValueIls) VALUES(6,'Old Only','OLD',10),(7,'Opening Holding','OPEN',100),(8,'Opening Holding','OPEN',120);
+    """;
+    cmd.ExecuteNonQuery();
+    cmd.CommandText="""
+    UPDATE Holdings SET Quantity=10 WHERE Symbol='TSLA' AND SnapshotId=1;
+    UPDATE Holdings SET Quantity=15 WHERE Symbol='TSLA' AND SnapshotId=2;
+    UPDATE Holdings SET Quantity=30 WHERE Symbol='TSLA' AND SnapshotId=4;
+    INSERT INTO SecurityHistoryEvents VALUES
+      (1,1,'2017-02-14','2017-02-14','Tesla Inc','TSLA',NULL,NULL,'First owned','Synthetic first-owned record'),
+      (2,1,'2019-05-06','2019-05-06','Tesla Inc','TSLA',NULL,20,'Historical quantity observed','Synthetic historical observation'),
+      (3,1,'2021-07-02','2021-07-09','Tesla Inc','TSLA',20,40,'Corporate action / quantity adjustment','Synthetic adjustment record'),
+      (4,2,'1999-01-01','1999-01-01','Tesla Inc','TSLA',NULL,NULL,'First owned','Other account'),
+      (5,1,'2018-03-04','2018-03-04','History Only','HIST',NULL,NULL,'First owned','Synthetic archived position'),
+      (6,1,'2020-01-01','2020-01-01','Tesla Bond','TB',NULL,5,'Historical quantity observed','Synthetic observation');
     """;
     cmd.ExecuteNonQuery();
    }
@@ -100,12 +114,66 @@ internal static class Program {
     catch(OperationCanceledException) { Check(true,"Cancellation propagates"); }
    }
    Reject(()=>new LocalInterpreter(new HttpClient(){BaseAddress=new("https://example.com/")}),"Reject remote AI endpoint");
+   var owned=service.Calculate(new(1,"A"),new QueryIntent{operation="holding_first_owned",security="TSLA"});
+   Check(owned.Success && owned.Text.Contains("14 Feb 2017") && owned.Text.Contains("Recorded first owned") && owned.Text.Contains("not proof"),"Explicit first-owned event answers date without asserting purchase");
+   Check(owned.Text.Contains("Synthetic first-owned record") && !owned.Text.Contains("1999"),"First-owned source and account scope preserved");
+   Check(db.ResolveSecurity(1,"HIST").Single().Name=="History Only","Archived security resolves from stored events without snapshots");
+   Check(service.Calculate(new(1,"A"),new QueryIntent{operation="holding_first_owned",security="HIST"}).Text.Contains("04 Mar 2018"),"History-only holding can answer first-owned date");
+   var noOwned=service.Calculate(new(1,"A"),new QueryIntent{operation="holding_first_owned",security="TB"});
+   Check(!noOwned.Success && noOwned.Text.Contains("no explicit") && !noOwned.Text.Contains("2020-01-01"),"Quantity observation is never used as first purchase date");
+   var fullHistory=service.Calculate(new(1,"A"),new QueryIntent{operation="holding_history",security="TSLA"});
+   var historyRows=(List<HistoryRow>)fullHistory.Data;
+   Check(historyRows.Any(x=>x.Event=="First owned") && historyRows.Any(x=>x.Event=="Corporate action / quantity adjustment") && historyRows.Any(x=>x.Source=="Consolidation portfolio snapshot"),"History includes recorded events and explicitly labelled quantity observations");
+   Check(!historyRows.Any(x=>x.Source=="Other account"),"Event history never crosses accounts");
+   var observations=db.ObservedQuantities(1,new SecurityCandidate("Tesla Inc","TSLA"));
+   Check(observations.Count==2 && observations.Last().Quantity==30,"Quantity history uses newest same-day capture and skips nulls");
+   var bounded=service.Calculate(new(1,"A"),new QueryIntent{operation="holding_history",security="TSLA",start_date="2021-01-01",end_date="2021-12-31"});
+   Check(((List<HistoryRow>)bounded.Data).Count==1 && ((List<HistoryRow>)bounded.Data)[0].Event=="Corporate action / quantity adjustment","Explicit history range filters events without year-to-date default");
+   var cleanOwned=QueryValidator.Validate(new(){operation="holding_first_owned",security="TSLA"});
+   Check(cleanOwned.start_date==null && cleanOwned.end_date==null,"First-owned query has no year-to-date window");
+   Reject(()=>QueryValidator.Validate(new(){operation="holding_first_owned",security="TSLA",start_date="2025-01-01"}),"Reject date-window contamination on first-owned query");
+   Reject(()=>QueryValidator.Validate(new(){operation="holding_history",security="TSLA",sort_by="start_value"}),"Reject ranking filters on history query");
+   var stale=new ConversationSession{SelectedAccount="A"};
+   stale.Commit(new QueryIntent{operation="holdings_disappeared",start_date="2025-01-01",end_date="2025-09-30",sort_by="start_value"},"Old ranking",new[]{"TB"});
+   var question="when did I first buy tesla?";
+   Check(QuestionContract.RequiredOperation(question,stale)=="holding_first_owned","Screenshot question selects ownership answer family");
+   var freshContext=JsonSerializer.Serialize(QuestionContract.PlannerContext(question,stale));
+   Check(!freshContext.Contains("start_value") && !freshContext.Contains("holdings_disappeared") && !freshContext.Contains("2025-01-01"),"New ownership question excludes stale ranking and dates from context");
+   Reject(()=>QuestionContract.Validate(question,stale,new(){operation="holdings_disappeared"}),"Reject exact unrelated-answer failure before database execution");
+   handler.Answer="""{"action":"execute","operation":"holdings_disappeared","start_date":"2025-01-01","end_date":"2025-09-30"}""";
+   Reject(()=>interpreter.Interpret(question,stale,CancellationToken.None).GetAwaiter().GetResult(),"Interpreter independently rejects unrelated valid JSON response");
+   handler.Answer="""{"action":"execute","operation":"holding_first_owned","security":"TSLA"}""";
+   var interpreted=interpreter.Interpret(question,stale,CancellationToken.None).GetAwaiter().GetResult();
+   Check(service.Calculate(new(1,"A"),interpreted).Text.Contains("14 Feb 2017"),"Ranking to first-owned conversation reaches stored date");
+   using(var req=JsonDocument.Parse(handler.Request)) {
+       var format=req.RootElement.GetProperty("format").GetRawText();
+       Check(format.Contains("holding_first_owned") && !format.Contains("holdings_disappeared"),"Question-specific schema cannot generate an unrelated ranking");
+   }
+   stale.Commit(cleanOwned,owned.Text,new[]{"TSLA"});
+   Check(QuestionContract.RequiredOperation("And Apple?",stale)=="holding_first_owned","Short follow-up retains ownership question family");
+   // A pre-history database is handled without schema changes or fabricated dates.
+   var pendingOwnership=new ConversationSession{PendingQuestion="when did I first buy tesla?"};
+   Check(QuestionContract.RequiredOperation("TSLA",pendingOwnership)=="holding_first_owned","Security clarification reply retains pending ownership intent");
+   Check(!JsonSerializer.Serialize(QuestionContract.PlannerContext("when did I first buy tesla?",new ConversationSession{PendingQuestion="best 5 stocks"})).Contains("best 5 stocks"),"New ownership question does not inherit an unrelated pending clarification");
+   Check(historyRows.Zip(historyRows.Skip(1)).All(p=>p.First.EventDate<=p.Second.EventDate),"Combined history table is chronological");
+   Check(!QuestionContract.AllowsHistoryDates("Show holding history for TSLA.",stale) && QuestionContract.AllowsHistoryDates("Show holding history since 2022 for TSLA.",stale),"History dates require an explicit period");
+   Reject(()=>QuestionContract.Validate("Show holding history for TSLA.",stale,new(){operation="holding_history",security="TSLA",start_date="2025-01-01"}),"Reject invented year-to-date history restriction");
+   Check(!QuestionContract.AllowsHistoryDates("Show holding history for TSLA.",new ConversationSession{PendingQuestion="best stocks in 2026"}),"Unrelated pending ranking cannot supply history dates");
+   Reject(()=>QuestionContract.Validate("when did I first buy tesla?",stale,new(){action="explain"}),"Ownership question cannot repeat an unrelated previous answer");
+   var oldPath=path+".old";
+   using(var c=new SqliteConnection("Data Source="+oldPath+";Pooling=False")) {c.Open();using var cmd=c.CreateCommand();cmd.CommandText="CREATE TABLE Placeholder(Id INTEGER)";cmd.ExecuteNonQuery();}
+   try { new ReadOnlyPortfolio(oldPath).StoredHistory(1,new("Tesla Inc","TSLA"));throw new Exception("Missing table accepted");}
+   catch(InvalidOperationException ex){Check(ex.Message.Contains("no SecurityHistoryEvents"),"Old database reports missing history capability clearly");}
+   finally {File.Delete(oldPath);}
    Check(hash.SequenceEqual(SHA256.HashData(File.ReadAllBytes(path))),"All financial queries leave database bytes unchanged");
    // Instantiate and lay out the compiled WPF controls without loading a real portfolio.
    var window=new MainWindow();
    var root=(System.Windows.FrameworkElement)window.Content;
    root.Measure(new System.Windows.Size(1280,900)); root.Arrange(new System.Windows.Rect(0,0,1280,900)); root.UpdateLayout();
    Check(window.FindName("Transcript") != null && window.FindName("CancelButton") != null,"Compiled conversation UI constructs and lays out");
+   typeof(MainWindow).GetMethod("RenderResult",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance)!.Invoke(window,new object[]{historyRows,fullHistory.Subtitle,fullHistory.Note,fullHistory.Text});
+   root.Measure(new System.Windows.Size(1280,900)); root.Arrange(new System.Windows.Rect(0,0,1280,900)); root.UpdateLayout();
+   Check(((System.Windows.Controls.DataGrid)window.FindName("ResultsGrid")).Items.Count==historyRows.Count,"Compiled WPF history table renders event and quantity rows");
    if (Environment.GetEnvironmentVariable("ASKCONS_PREVIEW") is string preview) {
     var bitmap=new System.Windows.Media.Imaging.RenderTargetBitmap(1280,900,96,96,System.Windows.Media.PixelFormats.Pbgra32);
     bitmap.Render(root); var encoder=new System.Windows.Media.Imaging.PngBitmapEncoder();
@@ -131,6 +199,20 @@ internal static class Program {
     Console.WriteLine("LIVE ambiguity: "+JsonSerializer.Serialize(ambiguity));
     Check(ambiguity.action is "clarify" or "unsupported" || ambiguity.operation=="unsupported","Live model does not invent transaction-adjusted profit");
    }
+   if(Environment.GetEnvironmentVariable("ASKCONS_LIVE_OWNERSHIP")=="1") {
+     var live=new LocalInterpreter(); var conversation=new ConversationSession{SelectedAccount="Synthetic A"};
+     conversation.Commit(new QueryIntent{operation="holdings_disappeared",start_date="2025-01-01",end_date="2025-09-30",sort_by="start_value"},"Prior ranking",new[]{"TB"});
+     using var timeout=new CancellationTokenSource(TimeSpan.FromMinutes(3));
+     var planOwned=live.Interpret("when did I first buy tesla?",conversation,timeout.Token).GetAwaiter().GetResult();
+     Console.WriteLine("LIVE ownership: "+JsonSerializer.Serialize(planOwned));
+     Check(planOwned.action=="execute" && planOwned.operation=="holding_first_owned" && !string.IsNullOrWhiteSpace(planOwned.security) && planOwned.start_date==null && planOwned.end_date==null && planOwned.sort_by==null,"Live model changes ranking to all-time first-owned query");
+     QueryValidator.Validate(planOwned);
+     conversation.Commit(new QueryIntent{operation="holding_first_owned",security="TSLA"},"Synthetic recorded first owned",new[]{"TSLA"});
+     var planHistory=live.Interpret("Show the holding history for TSLA.",conversation,timeout.Token).GetAwaiter().GetResult();
+     Console.WriteLine("LIVE history: "+JsonSerializer.Serialize(planHistory));
+     Check(planHistory.action=="execute" && planHistory.operation=="holding_history" && planHistory.security=="TSLA" && planHistory.start_date==null && planHistory.end_date==null,"Live history request clears dates and preserves named security");
+     QueryValidator.Validate(planHistory);
+   }
    Console.WriteLine(checks+" checks passed."); return 0;
   } catch(Exception ex) { Console.Error.WriteLine(ex); return 1; }
   finally { SqliteConnection.ClearAllPools(); if(File.Exists(path)) File.Delete(path); }
@@ -143,6 +225,9 @@ internal static class Program {
   }
  }
 }
+
+
+
 
 
 

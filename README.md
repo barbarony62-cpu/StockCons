@@ -1,74 +1,46 @@
-# AskCons V0.4.1 — conversational local portfolio queries
+# AskCons V0.5.0
 
-## V0.4.1 correction
-- Recognized Hebrew/English summary labels (including סה"כ and סה״כ:) are excluded from security resolution, valuations, shares, rankings and security history. The separate account-total query is unchanged.
-- Exact normalized labels are used, not substring matching. TotalEnergies remains a security; a ticker-qualified "Total" is preserved.
-- Ambiguous "best/worst holdings" questions ask for the metric before querying.
-- Top/bottom value-change plans cannot sort by opening/ending position size.
-- Results disclose their actual sort field and direction.
-- first_recorded_start selects the first saved snapshot inside the requested range; present_at_start applies membership there.
-- 38 regression checks cover these corrections alongside the earlier checks.
+## Run
+Extract the portable Windows ZIP and run AskCons.exe with Ollama and qwen3:4b available.
+The existing Consolidation database is opened read-only at:
+%LOCALAPPDATA%\Consolidation\consolidation.db
 
-## Run on Windows
-Extract the portable ZIP into a new folder and run AskCons.exe.
-Keep ConsolidationNG's existing database at %LOCALAPPDATA%\Consolidation\consolidation.db.
-Start Ollama with qwen3:4b installed. Click Test AI connection.
-No database migration or financial writes are performed.
+## New in this version
+- "When did I first buy Tesla?" reads the recorded First owned event, retaining that label rather than claiming a purchase transaction.
+- "Show holding history for TSLA" displays stored events, quantities and source labels.
+- "Show quantity history for TSLA" displays saved quantity observations.
+- These queries cover all recorded history by default. Add an explicit period if desired.
+- Archived securities can resolve from stored events even without valuation snapshots.
+- Ownership questions cannot execute an unrelated holdings-disappeared ranking.
+- Fresh history questions exclude stale ranking context. Clarification replies and short ownership follow-ups retain the relevant intent.
+- History tables are chronological, and each row identifies its source.
 
-## What's new
-- In-memory conversations separated by selected account. Follow-ups include the previous validated plan, ordered security identifiers, recent turns and pending clarification.
-- Clarify/execute/explain/unsupported actions; user messages are separated from system instructions.
-- Chat transcript alongside the current answer/table/chart, New conversation, Cancel, three-minute request timeout.
-- Account changes invalidate pending responses; closing the window cancels pending AI work.
-- Security resolution scoped to the selected account, preferring exact names/tickers and asking when ambiguous.
-- Exact instrument matching during calculation. Unknown/missing historical holdings do not become fabricated zero charts.
-- Share calculations use the account and holding from one snapshot.
-- Value-change answers explain that transactions and income are not adjusted.
-- Removed keyword-based rewriting of financial questions and dates.
-- Calculation service separated from WPF; unsupported/inapplicable filters rejected; corrected sorting.
-- Holdings presence is distinct from a recorded zero valuation.
-- AI endpoint restricted to HTTP loopback; default HTTP redirects disabled.
-- JSON-schema-constrained model output; unknown JSON fields and invalid conversation actions rejected.
+See CAPABILITIES.md for the audited mapping of Consolidation's data to supported and currently unavailable AskCons operations.
 
-## Try a conversation
-1. Show my five largest holdings at the end of September 2025.
-2. And at the end of January 2025?
-3. Show their recorded value changes from January 1 to September 30, 2025.
-4. Graph the second one monthly.
-5. Explain how you calculated that.
+## What dates mean
+A stored First owned event is not proof of the actual purchase transaction. No first-owned date is inferred from the earliest snapshot or a quantity observation. If no explicit First owned event exists, AskCons says so. If multiple distinct dates are stored, the earliest is shown with a note.
 
-Follow-ups are interpreted by the local model and can still require correction. Context is supplied; this is not a guarantee that every paraphrase or multi-step request is supported. A series covers one account or one security. Comparing an arbitrary retained set of multiple securities is not yet implemented.
+Stored event dates, labels and sources are retained. Quantity differences are not automatically classified as purchases, sales or stock splits.
 
-## Important behavior
-- "Change" is recorded ending value minus opening value, not investment profit or return. Best/worst investment-performance requests should trigger clarification.
-- Queries use the latest saved snapshot on or before each requested boundary, and show the actual dates. Old data may be used if there is no newer snapshot; inspect those dates.
-- Rankings assume the source snapshots represent complete holdings; a missing instrument in a complete snapshot counts as absent. Null holding values fail the comparison.
-- Series show saved observations only. Missing holdings or valuations are omitted rather than treated as zero. Lines connect available observations; no intermediate values are calculated.
-- Current scalar value/change queries require matching saved valuations; they do not infer zero for a position absent from a boundary.
-- The account total uses the existing LiquidAssetsIls field. Confirm that this is the total you intend to analyze.
-- Security identity uses the database's existing ticker, or exact name where no ticker exists. There is no separate master security identifier or exchange disambiguation.
-- Stock/fund/bond classification, transaction-adjusted profit, realized gains, dividends, market explanations, arbitrary aggregation and multi-security charts remain unsupported.
-- Deterministic result labels are in English. Input/clarification quality in Hebrew depends on the local model.
-- Explain repeats the last verified answer and describes the calculation; it does not invent economic causes.
-- Conversations are kept only during this run. Existing per-account question history remains on disk at %LOCALAPPDATA%\AskCons\questions.json. New conversation clears current chat context, not saved question history.
-- Nothing in this release changes Ollama's own cloud/network settings or your firewall. The app calls only its loopback endpoint.
+## Compatibility
+Uses the SecurityHistoryEvents columns in the supplied ConsolidationNG V1.57.2 source, plus Holdings.Quantity for observed quantities. Missing history tables produce an explicit compatibility message; there are no schema changes or migrations. A database with no Quantity column returns no snapshot quantity observations.
 
-## Build and test
-Requires the .NET 8 SDK on Windows.
+Existing snapshot-query features and V0.4.1 summary-row exclusions remain. Broader net-worth, annual-history and cached-ranking sources are mapped but not implemented. Snapshot value changes remain distinct from investment profit and returns. Security identity still uses the existing symbol or exact recorded name.
+
+Conversations remain in memory for the current run; the existing saved-question list remains local. The app uses HTTP loopback to Ollama; it does not change Ollama's network settings or Windows Firewall.
+
+## Build and verify on Windows
+Requires the .NET 8 SDK.
 
     dotnet run --project tests/AskCons.Tests.csproj -c Release
     python tools/verify_readonly.py
     python tools/verify_window_resources.py
     dotnet publish AskCons.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
 
-Optional local model smoke test (uses synthetic context only):
+Optional live checks against the local model, with synthetic context only:
 
-    $env:ASKCONS_LIVE_MODEL="1"
+    $env:ASKCONS_LIVE_OWNERSHIP="1"
     dotnet run --project tests/AskCons.Tests.csproj -c Release
 
-The console regression runner uses a temporary synthetic SQLite database, checks read-only behavior with a file hash, exercises the planner through a fake HTTP handler, and constructs/layouts the compiled WPF controls. The optional live test checks a ranking, ordinal follow-up and profit ambiguity against the locally installed model; it is a smoke test, not an accuracy benchmark.
-
-GitHub Actions runs the regression runner before publishing and builds the Inno Setup installer. Upload the entire source project including .github, tests and tools to the repository.
-
-
+The included GitHub Actions workflow runs regression checks and builds the V0.5.0 Windows installer. Include the .github, tests and tools folders when uploading the full project.
 

@@ -4,7 +4,8 @@ namespace AskCons;
 public sealed record AnswerData(object Data, string Subtitle, string Note, string Text, bool Success = true);
 public sealed class FinancialQueryService(ReadOnlyPortfolio db) {
     public static string Describe(string operation) => operation switch {
-        "account_value" => "Account value", "account_change" => "Account value change",
+        "holding_first_owned" => "Recorded first owned", "holding_history" => "Holding history",
+        "holding_quantity_history" => "Observed quantity history", "account_value" => "Account value", "account_change" => "Account value change",
         "holding_value" => "Holding value", "holding_change" => "Holding value change",
         "holding_share" => "Share of account", "holding_series" => "Holding history",
         "account_series" => "Account history", "holdings_disappeared" => "Holdings no longer present",
@@ -14,6 +15,7 @@ public sealed class FinancialQueryService(ReadOnlyPortfolio db) {
     public AnswerData Calculate(Account account, QueryIntent intent)
     {
         if (intent.operation == "unsupported") return Failure("I cannot safely calculate this request: " + (string.IsNullOrWhiteSpace(intent.unsupported_reason) ? "A requested operation is not supported by the local data adapter." : intent.unsupported_reason));
+        if (OwnershipQueries.IsOwnership(intent.operation)) return OwnershipQueries.Calculate(db, account, intent);
         QueryValidator.Validate(intent);
         var start = ParseDate(intent.start_date)!.Value;
         var end = ParseDate(intent.end_date)!.Value;

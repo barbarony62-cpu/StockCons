@@ -187,7 +187,7 @@ public partial class MainWindow : Window
             }
             if (intent.action == "explain") {
                 Reply(session.LastPlan == null ? "Ask a financial question first." :
-                    session.LastAnswer + "\n\nCalculation: recorded snapshot values in NIS. Change is end minus start; purchases, sales, income and currency effects are not separated. Series use the last saved observation in each period.");
+                    session.LastAnswer + (OwnershipQueries.IsOwnership(session.LastPlan.operation) ? "\n\nSource: stored ownership events retain their recorded event labels; snapshot quantities are observations, not proof of purchases or sales." : "\n\nCalculation: recorded snapshot values in NIS. Change is end minus start; purchases, sales, income and currency effects are not separated. Series use the last saved observation in each period."));
                 return;
             }
             if (intent.action == "unsupported" || intent.operation == "unsupported") {
@@ -195,6 +195,7 @@ public partial class MainWindow : Window
                 return;
             }
             if (intent.action != "execute") throw new ArgumentException("Unknown conversation action.");
+            QuestionContract.Validate(question, session, intent);
             QueryValidator.Validate(intent);
             if (!string.IsNullOrWhiteSpace(intent.security)) {
                 var candidates = await Task.Run(() => db.ResolveSecurity(account.Id, intent.security), token);
@@ -216,7 +217,9 @@ public partial class MainWindow : Window
             var result = await Task.Run(() => new FinancialQueryService(db).Calculate(account, intent), token);
             token.ThrowIfCancellationRequested();
             if (!Active()) return;
-            var context = $"{account.Name} · Requested {intent.start_date ?? "year start"} – {intent.end_date ?? "today"} · {FinancialQueryService.Describe(intent.operation)}";
+            var context = OwnershipQueries.IsOwnership(intent.operation)
+                ? $"{account.Name} · {FinancialQueryService.Describe(intent.operation)}"
+                : $"{account.Name} · Requested {intent.start_date ?? "year start"} – {intent.end_date ?? "today"} · {FinancialQueryService.Describe(intent.operation)}";
             var response = context + "\n" + result.Text;
             if (!string.IsNullOrWhiteSpace(result.Note)) response += "\n" + result.Note;
             AddTurn(session, "AskCons", response);
@@ -284,6 +287,23 @@ public partial class MainWindow : Window
             ConfigureRankingGrid(rows);
             ResultsGrid.Visibility = Visibility.Visible;
         }
+        else if (result is List<HistoryRow> history) {
+            AnswerHeading.Text = "Recorded holding history";
+            if(mode=="Text") { AnswerScroll.Visibility=Visibility.Visible; return; }
+            ResultsGrid.Columns.Clear();
+            ResultsGrid.Columns.Add(Column("Period",nameof(HistoryRow.Period),null,1.5));
+            ResultsGrid.Columns.Add(Column("Event",nameof(HistoryRow.Event),null,2));
+            ResultsGrid.Columns.Add(Column("Quantity",nameof(HistoryRow.Quantity),null,1.5));
+            ResultsGrid.Columns.Add(Column("Source",nameof(HistoryRow.Source),null,2));
+            ResultsGrid.Columns[0].MinWidth=170; ResultsGrid.Columns[1].MinWidth=230;
+            ResultsGrid.Columns[2].MinWidth=170; ResultsGrid.Columns[3].MinWidth=230;
+            ResultsGrid.RowHeight=double.NaN; ResultsGrid.MinRowHeight=37;
+            var historyStyle=new Style(typeof(TextBlock));
+            historyStyle.Setters.Add(new Setter(TextBlock.TextWrappingProperty,TextWrapping.Wrap));
+            historyStyle.Setters.Add(new Setter(FrameworkElement.MarginProperty,new Thickness(4)));
+            foreach(var column in ResultsGrid.Columns.OfType<DataGridTextColumn>()) column.ElementStyle=historyStyle;
+            ResultsGrid.ItemsSource=history; ResultsGrid.Visibility=Visibility.Visible;
+        }
         else if (result is SeriesResult series)
         {
             AnswerHeading.Text = "Historical value — " + series.Label;
@@ -308,6 +328,7 @@ public partial class MainWindow : Window
     }
     private void ConfigureRankingGrid(List<RankingRow> rows)
     {
+        ResultsGrid.RowHeight=37;
         ResultsGrid.Columns.Clear();
         ResultsGrid.Columns.Add(Column("#", nameof(RankingRow.Rank), null, 0.4));
         ResultsGrid.Columns.Add(Column("Security", nameof(RankingRow.Security), null, 3));
@@ -318,6 +339,7 @@ public partial class MainWindow : Window
     }
     private void ConfigureSeriesGrid(SeriesResult series)
     {
+        ResultsGrid.RowHeight=37;
         ResultsGrid.Columns.Clear();
         ResultsGrid.Columns.Add(Column("Period", nameof(SeriesRow.Period), null, 1.2));
         ResultsGrid.Columns.Add(Column("Actual snapshot", nameof(SeriesRow.Date), "yyyy-MM-dd", 1.3));
@@ -387,6 +409,8 @@ public partial class MainWindow : Window
         Canvas.SetLeft(label, x); Canvas.SetTop(label, y); PlotCanvas.Children.Add(label);
     }
 }
+
+
 
 
 

@@ -1,9 +1,22 @@
-# AskCons V0.4.1 validation
+# AskCons V0.5.0 validation — 25 October 2026
 
-The screenshot exposed a portfolio summary being treated as a security and a ranking whose order did not match value change. Synthetic fixtures now include Hebrew summary rows with differing punctuation, a genuine TotalEnergies holding, and a first-in-period snapshot after the requested January 1 boundary.
+## Checks performed
+- Release build and self-contained Windows x64 publish succeeded.
+- 66 synthetic regression checks passed.
+- Five optional live checks against the installed local Qwen3 4B passed: value-change ranking, ordinal graph follow-up, profit clarification, ranking-to-first-owned transition and all-time holding-history request. These used synthetic context only.
+- First-owned tests use explicit stored events and check the source label, account scope, absence of a year-to-date window, history-only security resolution and no fallback to quantity observations.
+- Conversation checks reproduce a prior holdings-disappeared ranking followed by "when did I first buy tesla?". Wrong operations, stale filters and unrequested history date windows are rejected.
+- Missing-table compatibility is tested without migrations.
+- Holdings and quantity-history reads leave the synthetic database's bytes unchanged.
+- The compiled WPF history table was laid out at 1280 x 900, rendered and visually inspected. Long event descriptions and date ranges wrap.
+- Existing source read-only and WPF resource checks passed.
 
-38 regression checks passed, including summary exclusion across all security query paths, unchanged account totals, ranking order, metric clarification for the exact screenshot question, first-recorded-day membership and unchanged database bytes. The WPF window is constructed and laid out by the regression runner.
+## Scope
+The adapter was checked against the supplied ConsolidationNG V1.57.2 source schema. No real financial database was opened or changed. The recorded date shown by your screenshot is not hard-coded in the application; the application reads the selected account's stored events.
 
-Release Windows x64 compilation and self-contained publication were checked locally. The earlier V0.4.0 live-model smoke tests were not rerun for this hotfix. No real financial database was inspected or modified. The installer itself is built by the included GitHub workflow; the portable EXE is supplied separately.
+A First owned event does not prove the actual transaction date. Missing events remain missing. Snapshot quantities are labelled observations.
 
-Summary identification is limited to the explicit normalized labels in HoldingIdentity.cs. There is no authoritative row-type field in the currently supported adapter.
+The natural-language contract covers recognized question families and is not a guarantee that every wording is interpreted correctly. Broader annual-history, net-worth and cached-ranking capabilities are mapped in CAPABILITIES.md but not enabled in this version.
+
+GitHub Actions builds the installer after the regression runner. The Inno Setup installer has not been run locally; a separately published portable Windows application is supplied.
+

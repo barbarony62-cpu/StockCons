@@ -1,5 +1,5 @@
-<Window x:Class="AskCons.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="AskCons V0.4.1" WindowState="Maximized" MinWidth="950" MinHeight="650" Background="#F5F8FD" FontFamily="Segoe UI">
-<Grid>
+<Window x:Class="AskCons.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="AskCons V0.5.0" WindowState="Maximized" MinWidth="950" MinHeight="650" Background="#F5F8FD" FontFamily="Segoe UI">
+<Grid Background="#F5F8FD">
  <Grid.RowDefinitions><RowDefinition Height="92"/><RowDefinition Height="*"/><RowDefinition Height="112"/></Grid.RowDefinitions>
  <Border Grid.Row="0" Background="#0C3265" Padding="20,10"><StackPanel Orientation="Horizontal" VerticalAlignment="Center">
    <Border Width="66" Height="66" Background="White" CornerRadius="10" Padding="0" ClipToBounds="False"><Image Source="/AskCons;component/AskCons.png" Stretch="Uniform" Width="62" Height="62" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
@@ -35,3 +35,4 @@
   <Button Grid.Row="1" Grid.Column="1" x:Name="AskButton" Content="Ask →" Margin="14,0,0,0" FontSize="18" FontWeight="Bold" Foreground="White" Background="#0754A4" Click="AskClick"/>
  </Grid></Border>
 </Grid></Window>
+

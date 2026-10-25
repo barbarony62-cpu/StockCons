@@ -1,7 +1,7 @@
 using System.IO;
 using Microsoft.Data.Sqlite;
 namespace AskCons;
-public sealed class ReadOnlyPortfolio {
+public sealed partial class ReadOnlyPortfolio {
  public static string DefaultPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Consolidation","consolidation.db");
  private readonly string path;
  public ReadOnlyPortfolio(string? path=null){this.path=path??DefaultPath;}
@@ -10,8 +10,14 @@ public sealed class ReadOnlyPortfolio {
     using var c=Connect(); using var cmd=c.CreateCommand();
     cmd.CommandText="SELECT DISTINCT h.Name, COALESCE(h.Symbol,'') FROM Holdings h JOIN Snapshots s ON s.Id=h.SnapshotId WHERE s.AccountId=$a AND NOT askcons_summary(h.Name, COALESCE(h.Symbol,''))";
     cmd.Parameters.AddWithValue("$a",accountId);
-    using var r=cmd.ExecuteReader(); var all=new List<SecurityCandidate>();
-    while(r.Read()) all.Add(new(r.GetString(0),r.GetString(1)));
+    var all=new List<SecurityCandidate>();
+    using(var r=cmd.ExecuteReader()) while(r.Read()) all.Add(new(r.GetString(0),r.GetString(1)));
+    if (HasTable(c,"SecurityHistoryEvents")) {
+        using var history=c.CreateCommand();
+        history.CommandText="SELECT DISTINCT Name,COALESCE(Symbol,'') FROM SecurityHistoryEvents WHERE AccountId=$a AND NOT askcons_summary(Name,COALESCE(Symbol,''))";
+        history.Parameters.AddWithValue("$a",accountId);
+        using var rr=history.ExecuteReader(); while(rr.Read()) all.Add(new(rr.GetString(0),rr.GetString(1)));
+    }
     var exact=all.Where(x=>string.Equals(x.Name,term,StringComparison.OrdinalIgnoreCase) || string.Equals(x.Symbol,term,StringComparison.OrdinalIgnoreCase)).ToList();
     var matches=exact.Count>0?exact:all.Where(x=>x.Name.Contains(term,StringComparison.OrdinalIgnoreCase) || x.Symbol.Contains(term,StringComparison.OrdinalIgnoreCase)).ToList();
     return matches.GroupBy(x=>string.IsNullOrWhiteSpace(x.Symbol)?"N:"+x.Name:"S:"+x.Symbol,StringComparer.OrdinalIgnoreCase).Select(g=>g.First()).ToList();

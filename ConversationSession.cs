@@ -12,6 +12,7 @@ public sealed class ConversationSession
  LastAnswer=answer; OrderedSecurities=securities.ToList(); PendingQuestion=null;
  }
  public string? ResolveReference(string question) {
+  if(OrderedSecurities.Count==1 && System.Text.RegularExpressions.Regex.IsMatch(question,@"\b(it|that holding|that stock|this security)\b",System.Text.RegularExpressions.RegexOptions.IgnoreCase)) return OrderedSecurities[0];
   var match=System.Text.RegularExpressions.Regex.Match(question, @"\b(first|second|third|fourth|fifth|1st|2nd|3rd|4th|5th)\s+(one|holding|security|stock|item)\b",System.Text.RegularExpressions.RegexOptions.IgnoreCase);
   if(!match.Success) return null;
   var ordinal=match.Groups[1].Value.ToLowerInvariant();

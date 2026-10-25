@@ -8,6 +8,7 @@ namespace AskCons;
 public static class QueryValidator
 {
     private static readonly HashSet<string> Operations = new(StringComparer.Ordinal) {
+        "holding_first_owned", "holding_history", "holding_quantity_history",
         "account_change", "account_value", "holding_change", "holding_value",
         "top_holding_changes", "bottom_holding_changes", "holdings_filter", "holdings_list",
         "holdings_disappeared", "holding_share", "holding_series", "account_series", "unsupported"
@@ -35,7 +36,7 @@ public static class QueryValidator
             throw new ArgumentException("Security name or filter is too long.");
         if ((plan.operation is "holding_series" or "account_series") && (plan.group_by is "day" or "week" or "month"))
             plan.interval = plan.group_by;
-        if ((plan.operation is "holding_change" or "holding_value" or "holding_series" or "holding_share") &&
+        if ((plan.operation is "holding_change" or "holding_value" or "holding_series" or "holding_share" or "holding_first_owned" or "holding_history" or "holding_quantity_history") &&
             string.IsNullOrWhiteSpace(plan.security))
             throw new ArgumentException("The question needs a specific holding name or ticker.");
         if (plan.security_type is not (null or "all"))
@@ -61,6 +62,17 @@ public static class QueryValidator
         Range(plan.minimum_start_value_nis, plan.maximum_start_value_nis);
         Range(plan.minimum_end_value_nis, plan.maximum_end_value_nis);
 
+        if (OwnershipQueries.IsOwnership(plan.operation)) {
+            if(plan.interval!=null || plan.metric!=null || plan.entity!=null || plan.group_by is not (null or "none") || plan.presentation=="graph")
+                throw new ArgumentException("Ownership events are a dated history, not a value graph or financial-return calculation.");
+            if(plan.operation=="holding_first_owned" && (plan.start_date!=null || plan.end_date!=null))
+                throw new ArgumentException("First-owned queries use all recorded ownership history, not a recent date window.");
+            if(plan.start_date!=null && plan.end_date!=null && string.CompareOrdinal(plan.start_date,plan.end_date)>0)
+                throw new ArgumentException("The history start must precede its end.");
+            if(plan.end_date!=null && DateTime.ParseExact(plan.end_date,"yyyy-MM-dd",CultureInfo.InvariantCulture)>DateTime.Today)
+                throw new ArgumentException("History cannot end in the future.");
+            return plan;
+        }
         plan.end_date ??= DateTime.Today.ToString("yyyy-MM-dd");
         plan.start_date ??= new DateTime(DateTime.ParseExact(plan.end_date, "yyyy-MM-dd", CultureInfo.InvariantCulture).Year, 1, 1).ToString("yyyy-MM-dd");
         var start = DateTime.ParseExact(plan.start_date, "yyyy-MM-dd", CultureInfo.InvariantCulture);
