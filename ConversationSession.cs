@@ -1,6 +1,7 @@
 namespace AskCons;
 public sealed class ConversationSession
 {
+ public string AnalysisEvidence {get;set;}="";
  public string SelectedAccount {get;set;}="";
  public QueryIntent? LastPlan {get;private set;}
  public List<string> OrderedSecurities {get;private set;} = new();

@@ -17,6 +17,8 @@ internal static class Program {
   try {
    using(var c=new SqliteConnection("Data Source="+path+";Pooling=False")) {
     c.Open(); using var cmd=c.CreateCommand(); cmd.CommandText="""
+    CREATE TABLE ReferenceFx(Date TEXT, Rate REAL);
+    INSERT INTO ReferenceFx VALUES('2025-09-30',4.0);
     CREATE TABLE Accounts(Id INTEGER, FriendlyName TEXT);
     CREATE TABLE Snapshots(Id INTEGER, AccountId INTEGER, ValuationDate TEXT, CapturedAt TEXT, LiquidAssetsIls REAL);
     CREATE TABLE Holdings(SnapshotId INTEGER, Name TEXT, Symbol TEXT, ValueIls REAL, Quantity REAL);
@@ -44,7 +46,8 @@ internal static class Program {
       (3,1,'2021-07-02','2021-07-09','Tesla Inc','TSLA',20,40,'Corporate action / quantity adjustment','Synthetic adjustment record'),
       (4,2,'1999-01-01','1999-01-01','Tesla Inc','TSLA',NULL,NULL,'First owned','Other account'),
       (5,1,'2018-03-04','2018-03-04','History Only','HIST',NULL,NULL,'First owned','Synthetic archived position'),
-      (6,1,'2020-01-01','2020-01-01','Tesla Bond','TB',NULL,5,'Historical quantity observed','Synthetic observation');
+      (6,1,'2020-01-01','2020-01-01','Tesla Bond','TB',NULL,5,'Historical quantity observed','Synthetic observation'),
+      (7,1,'2019-06-01','2019-06-01','FIRST TRUST NASDAQ ETF','QQEW',NULL,NULL,'First owned','Synthetic separate holding');
     """;
     cmd.ExecuteNonQuery();
    }
@@ -165,9 +168,11 @@ internal static class Program {
    try { new ReadOnlyPortfolio(oldPath).StoredHistory(1,new("Tesla Inc","TSLA"));throw new Exception("Missing table accepted");}
    catch(InvalidOperationException ex){Check(ex.Message.Contains("no SecurityHistoryEvents"),"Old database reports missing history capability clearly");}
    finally {File.Delete(oldPath);}
+   AnalysisChecks.Run(path,Check);
    Check(hash.SequenceEqual(SHA256.HashData(File.ReadAllBytes(path))),"All financial queries leave database bytes unchanged");
    // Instantiate and lay out the compiled WPF controls without loading a real portfolio.
    var window=new MainWindow();
+   Check(((System.Windows.Controls.CheckBox)window.FindName("AnalystModeBox")).IsChecked==true,"Open-ended analyst is the default chat mode");
    var root=(System.Windows.FrameworkElement)window.Content;
    root.Measure(new System.Windows.Size(1280,900)); root.Arrange(new System.Windows.Rect(0,0,1280,900)); root.UpdateLayout();
    Check(window.FindName("Transcript") != null && window.FindName("CancelButton") != null,"Compiled conversation UI constructs and lays out");
@@ -213,6 +218,8 @@ internal static class Program {
      Check(planHistory.action=="execute" && planHistory.operation=="holding_history" && planHistory.security=="TSLA" && planHistory.start_date==null && planHistory.end_date==null,"Live history request clears dates and preserves named security");
      QueryValidator.Validate(planHistory);
    }
+   if(Environment.GetEnvironmentVariable("ASKCONS_LIVE_ANALYST")=="1")AnalysisChecks.Live(path,Check);
+   if(Environment.GetEnvironmentVariable("ASKCONS_LIVE_OWNER_ONLY")=="1")AnalysisChecks.LiveOwner(path,Check);
    Console.WriteLine(checks+" checks passed."); return 0;
   } catch(Exception ex) { Console.Error.WriteLine(ex); return 1; }
   finally { SqliteConnection.ClearAllPools(); if(File.Exists(path)) File.Delete(path); }
@@ -225,6 +232,7 @@ internal static class Program {
   }
  }
 }
+
 
 
 

@@ -1,27 +1,22 @@
-# Consolidation → AskCons capability map (V0.5.0)
+# AskCons V0.6.0 capability map
 
-Audited against the supplied ConsolidationNG V1.57.2 source, not a live financial database.
+The default analyst explores the available schema within the selected account or explicit All accounts / full database scope instead of choosing only from the classic operation catalog.
 
-| Information | Consolidation source | AskCons operation | Status and meaning |
-|---|---|---|---|
-| Account recorded value | Snapshots.LiquidAssetsIls | account_value, account_change, account_series | Supported; snapshot values, not transaction-adjusted return |
-| Holding recorded values | Holdings.ValueIls + Snapshots | holding_value, holding_change, holding_series, holding_share | Supported; dated, account scoped |
-| Holdings lists and rankings | Two complete snapshots | holdings_list/filter/disappeared, top/bottom_holding_changes | Supported; recognized summary rows excluded |
-| Explicit first-owned event | SecurityHistoryEvents, EventType=First owned | holding_first_owned | New; earliest explicit event over all stored history, source retained |
-| Stored ownership events | SecurityHistoryEvents | holding_history | New; event types and recorded quantities retained |
-| Historical quantities | Holdings.Quantity + latest capture per valuation date | holding_quantity_history; also shown in holding_history | New; observations, not automatically transactions |
-| Annual historical liquid assets | HistoricalAnnual via GetAnnualHistory | — | Mapped, not implemented in this release |
-| Property, pension and net-worth observations | NetWorthObservations via GetNetWorthHistory | — | Mapped, not implemented; must not be confused with liquid portfolio value |
-| Cached performance rankings | PerformanceRankingCache | — | Mapped, not used; underlying definitions require a separate audit |
-| Transaction-adjusted profit, dividends, market causes | No suitable adapter calculation established | — | Unsupported |
-| Bank capture/import/update, backups, migrations | Consolidation write services | — | Excluded from the read-only assistant |
+| Capability | Implementation |
+|---|---|
+| Conversational investigation and follow-ups | Local model tool loop, recent chat and retained tool evidence |
+| Flexible database calculations | SELECT/CTE/window functions against a protected RAM copy |
+| Arithmetic | Deterministic expression parser; no eval, scripting or external execution |
+| Interpolation/extrapolation | Dated-series tools, mandatory warnings and explicit assumptions |
+| General inference / what-if calculations | SQL with inferred/scenario provenance and assumption warnings |
+| Graphs | Date/value query results rendered in the existing chart interface |
+| Ownership history | Stored events, exact event labels, AskFirstOwned and independently retrieved grounding |
+| Annual / net-worth / other account-linked records | Included automatically when present and safely account-scoped |
+| Source verification | Analysis details with schema, SQL, results, formulas and tool errors |
+| Database writes / bank actions / external programs | Unavailable to the model |
 
-Consolidation's GetSecurityHistory also derives labels from snapshot quantity changes, including a ratio-based corporate-action heuristic. AskCons does not recreate that heuristic as a fact: stored events retain their recorded labels, and snapshot quantities remain labelled observations.
+Financial meanings are not interchangeable: position value change is not necessarily investment profit, inferred exposure is not authoritative fund look-through, and an ownership event is not a purchase transaction. The analyst may discuss approximations while labelling their assumptions.
 
-## Question-to-answer contract
-Recognized first-owned questions constrain the planner to holding_first_owned or a clarification/unsupported response. Recognized holding/quantity-history questions have their own corresponding constraints. An independent check rejects a mismatching executable operation before any financial query executes.
+The earlier classic query engine remains available with AI analyst unchecked. Its operation restrictions do not apply to the default analyst flow.
 
-Fresh ownership requests receive a separate context without the previous ranking's operation, dates or filters. History-date fields are unavailable unless the question or a relevant follow-up requests a period. Date restrictions are also checked after generation.
-
-These checks cover the recognized wording families in QuestionContract.cs; they are not a proof that every natural-language question is interpreted correctly.
 

@@ -21,6 +21,13 @@ public partial class MainWindow : Window
 {
     private readonly ReadOnlyPortfolio db = new();
     private readonly LocalInterpreter interpreter = new();
+    private readonly PortfolioAnalyst analyst = new();
+    private string lastAnalysisDetails="";
+    private void AnalysisDetailsClick(object sender,RoutedEventArgs e) {
+        var text=new TextBox{Text=lastAnalysisDetails,IsReadOnly=true,TextWrapping=TextWrapping.Wrap,AcceptsReturn=true,
+            VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,Padding=new Thickness(12)};
+        new Window{Title="Local analysis details",Owner=this,Width=900,Height=650,Content=text}.Show();
+    }
     private readonly ObservableCollection<string> questions = new();
     private readonly Dictionary<string, List<string>> saved = new();
     private static readonly string HistoryPath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AskCons", "questions.json");
@@ -34,6 +41,7 @@ public partial class MainWindow : Window
     private void NewConversationClick(object sender, RoutedEventArgs e) {
         requestCancellation?.Cancel(); conversationGeneration++;
         if (AccountBox.SelectedItem is Account a) sessions[a.Id] = new();
+        lastAnalysisDetails=""; AnalysisDetailsButton.IsEnabled=false;
         Transcript.Children.Clear(); ShowText("New conversation. Ask a question.");
     }
     private void AddTurn(ConversationSession session, string role, string text) {
@@ -50,6 +58,7 @@ public partial class MainWindow : Window
     }
     private bool isAsking;
     private List<TimePoint>? chartPoints;
+    private string chartUnit="NIS";
     private string chartInterval = "month";
     private bool chartShowingTable;
     private object? lastResult;
@@ -124,6 +133,7 @@ public partial class MainWindow : Window
         {
             var old = AccountBox.SelectedValue;
             var accounts = db.Accounts();
+            accounts.Add(new Account(-1,"All accounts / full database"));
             AccountBox.ItemsSource = accounts;
             AccountBox.SelectedItem = accounts.FirstOrDefault(x => Equals(x.Id, old)) ?? accounts.FirstOrDefault();
         }
@@ -133,8 +143,11 @@ public partial class MainWindow : Window
     {
         if (AnswerText == null || AccountBox.SelectedItem is not Account a) return;
         requestCancellation?.Cancel(); conversationGeneration++;
+        lastAnalysisDetails=""; AnalysisDetailsButton.IsEnabled=false;
         Transcript.Children.Clear();
         foreach (var turn in Session(a.Id).Turns) AddBubble(turn.Role, turn.Text);
+        AnalystModeBox.IsEnabled=a.Id!=-1;
+        if(a.Id==-1)AnalystModeBox.IsChecked=true;
         ShowText($"Selected account: {a.Name}. Ask a question below.");
         UpdateHistory();
     }
@@ -165,13 +178,28 @@ public partial class MainWindow : Window
         isAsking = true;
         AskButton.IsEnabled = false; CancelButton.IsEnabled = true;
         AskButton.Content = "Working...";
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(10));
         requestCancellation = cancellation;
         var token = cancellation.Token;
         bool Active() => generation == conversationGeneration && !token.IsCancellationRequested;
         void Reply(string text) { AddTurn(session, "AskCons", text); ShowText(text); }
         try
         {
+            if(AnalystModeBox.IsChecked==true) {
+                var analystResult=await analyst.Chat(question,session,account,ReadOnlyPortfolio.DefaultPath,token,
+                    status=>Dispatcher.InvokeAsync(()=>{if(Active())AiStatus.Text=status;}));
+                token.ThrowIfCancellationRequested(); if(!Active())return;
+                Reply(analystResult.Text);
+                AnswerNote.Text=analystResult.Warnings.Count>0?"Estimated / partial data — see warnings in the answer.":"AI interpretation · source queries and calculations are in Analysis details.";
+                AnswerNote.Foreground=analystResult.Warnings.Count>0?Brushes.DarkGoldenrod:Brushes.SlateGray;
+                lastAnalysisDetails=analystResult.Details; AnalysisDetailsButton.IsEnabled=true;
+                AiStatus.Text="Local analysis complete · source database unchanged.";
+                if(analystResult.Chart!=null) {
+                    preferredPresentation="graph";
+                    RenderResult(analystResult.Chart,account.Name,string.Join("\n",analystResult.Warnings),analystResult.Text);
+                }
+                return;
+            }
             if (QuestionPolicy.NeedsMetricClarification(question)) {
                 session.PendingQuestion = question;
                 Reply(QuestionPolicy.MetricQuestion);
@@ -306,7 +334,8 @@ public partial class MainWindow : Window
         }
         else if (result is SeriesResult series)
         {
-            AnswerHeading.Text = "Historical value — " + series.Label;
+            AnswerHeading.Text = (series.Unit==""?"Analysis chart — ":"Historical value — ") + series.Label;
+            chartUnit=series.Unit;
             chartInterval = series.Interval;
             chartPoints = series.Points;
             if (mode == "Text") { AnswerScroll.Visibility = Visibility.Visible; return; }
@@ -343,7 +372,7 @@ public partial class MainWindow : Window
         ResultsGrid.Columns.Clear();
         ResultsGrid.Columns.Add(Column("Period", nameof(SeriesRow.Period), null, 1.2));
         ResultsGrid.Columns.Add(Column("Actual snapshot", nameof(SeriesRow.Date), "yyyy-MM-dd", 1.3));
-        ResultsGrid.Columns.Add(Column("Value (₪)", nameof(SeriesRow.Value), "N2", 1.6));
+        ResultsGrid.Columns.Add(Column(series.Unit==""?"Value":"Value ("+series.Unit+")", nameof(SeriesRow.Value), "N2", 1.6));
         ResultsGrid.ItemsSource = series.Points.Select(p => new SeriesRow { Period = series.Interval == "week" ? "Week ending " + p.Date.AddDays((6 - (int)p.Date.DayOfWeek + 7) % 7).ToString("yyyy-MM-dd") : series.Interval == "day" ? p.Date.ToString("yyyy-MM-dd") : p.Date.ToString("yyyy-MM"), Date = p.Date, Value = p.Value }).ToList();
     }
     private void ToggleDataClick(object sender, RoutedEventArgs e)
@@ -393,7 +422,7 @@ public partial class MainWindow : Window
         for (int i = 0; i < chartPoints.Count; i++)
         {
             var p = chartPoints[i]; var x = X(i); var y = Y(p.Value);
-            var marker = new Ellipse { Width = 9, Height = 9, Fill = Brushes.White, Stroke = new SolidColorBrush(Color.FromRgb(9, 93, 181)), StrokeThickness = 2, ToolTip = $"{p.Date:yyyy-MM-dd}\n{p.Value:N2} NIS" };
+            var marker = new Ellipse { Width = 9, Height = 9, Fill = Brushes.White, Stroke = new SolidColorBrush(Color.FromRgb(9, 93, 181)), StrokeThickness = 2, ToolTip = $"{p.Date:yyyy-MM-dd}\n{p.Value:N2} {chartUnit}" };
             Canvas.SetLeft(marker, x - 4.5); Canvas.SetTop(marker, y - 4.5); PlotCanvas.Children.Add(marker);
             if (i % step == 0 || i == chartPoints.Count - 1)
             {
@@ -401,7 +430,7 @@ public partial class MainWindow : Window
                 AddLabel(label, x - 35, h - bottom + 15, 70, 12, Brushes.SlateGray);
             }
         }
-        AddLabel("NIS", 5, 5, 60, 13, Brushes.SlateGray);
+        AddLabel(chartUnit, 5, 5, 60, 13, Brushes.SlateGray);
     }
     private void AddLabel(string text, double x, double y, double width, double size, Brush color)
     {
@@ -409,6 +438,8 @@ public partial class MainWindow : Window
         Canvas.SetLeft(label, x); Canvas.SetTop(label, y); PlotCanvas.Children.Add(label);
     }
 }
+
+
 
 
 

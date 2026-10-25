@@ -1,4 +1,4 @@
-name: Build AskCons V0.5.0 Installer
+name: Build AskCons V0.6.0 Installer
 on:
   push:
     branches: [main]
@@ -29,8 +29,8 @@ jobs:
         run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss'
       - uses: actions/upload-artifact@v4
         with:
-          name: AskCons-Installer-0.5.0
-          path: installer-output/AskCons-Setup-0.5.0.exe
+          name: AskCons-Installer-0.6.0
+          path: installer-output/AskCons-Setup-0.6.0.exe
           retention-days: 3
 
 
