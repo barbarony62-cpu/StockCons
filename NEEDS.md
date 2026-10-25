@@ -1,4 +1,4 @@
-# AskCons — requirements and V0.8.0 delivery
+# AskCons — requirements and V0.8.1 delivery
 
 Delivered together:
 - Always explain in English, including Hebrew questions; Hebrew/English research sources supported.

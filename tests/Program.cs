@@ -169,6 +169,7 @@ internal static class Program {
    catch(InvalidOperationException ex){Check(ex.Message.Contains("no SecurityHistoryEvents"),"Old database reports missing history capability clearly");}
    finally {File.Delete(oldPath);}
    AnalysisChecks.Run(path,Check);
+   LargeHistoryChecks.Run(Check);
    if(Environment.GetEnvironmentVariable("ASKCONS_LIVE_080")=="1")AnalysisChecks.Live080(path,Check);
    if(Environment.GetEnvironmentVariable("ASKCONS_LIVE_RESEARCH")=="1")AnalysisChecks.LiveResearch(path,Check);
    Check(hash.SequenceEqual(SHA256.HashData(File.ReadAllBytes(path))),"All financial queries leave database bytes unchanged");
@@ -248,6 +249,7 @@ internal static class Program {
   }
  }
 }
+
 
 
 

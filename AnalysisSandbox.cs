@@ -87,13 +87,31 @@ public sealed class AnalysisSandbox : IDisposable
         memory.CreateFunction<double?,double?>("log",x=>x.HasValue?Finite(Math.Log10(x.Value)):null,isDeterministic:true);
         memory.CreateFunction<double?,double?>("exp",x=>x.HasValue?Finite(Math.Exp(x.Value)):null,isDeterministic:true);
         memory.CreateFunction<string,string,bool>("is_summary",HoldingIdentity.IsSummaryLabel,isDeterministic:true);
+        // Source indexes are not part of SELECT * copies. Rebuild only RAM indexes before enabling query_only.
+        foreach(var definition in definitions) {
+            using var exists=memory.CreateCommand();exists.CommandText="SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=$n";exists.Parameters.AddWithValue("$n",definition.Name);
+            if(Convert.ToInt64(exists.ExecuteScalar())==0)continue;
+            var available=definition.Columns.Select(c=>c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var indexSets=new List<string[]>();
+            if(available.Contains("Id"))indexSets.Add(new[]{"Id"});
+            if(available.Contains("SnapshotId"))indexSets.Add(new[]{"SnapshotId"});
+            if(available.Contains("AccountId")&&available.Contains("ValuationDate"))indexSets.Add(new[]{"AccountId","ValuationDate","CapturedAt","Id"}.Where(available.Contains).ToArray());
+            foreach(var cols in indexSets){using var index=memory.CreateCommand();index.CommandText="CREATE INDEX "+Quote("ask_idx_"+definition.Name+"_"+string.Join("_",cols))+" ON "+Quote(definition.Name)+" ("+string.Join(",",cols.Select(Quote))+")";index.ExecuteNonQuery();}
+        }
         var snapshots=definitions.FirstOrDefault(d=>d.Name=="Snapshots");
         if(snapshots.Columns!=null && new[]{"Id","ValuationDate","CapturedAt"}.All(n=>snapshots.Columns.Any(c=>c.Name==n))) {
             using var views=memory.CreateCommand();
             views.CommandText="""
-            CREATE VIEW AskLatestSnapshots AS SELECT s.* FROM Snapshots s
-              WHERE s.Id=(SELECT x.Id FROM Snapshots x WHERE x.ValuationDate=s.ValuationDate AND x.AccountId=s.AccountId ORDER BY x.CapturedAt DESC,x.Id DESC LIMIT 1);
-            CREATE VIEW AskCurrentSnapshot AS SELECT s.* FROM AskLatestSnapshots s WHERE s.Id=(SELECT x.Id FROM AskLatestSnapshots x WHERE x.AccountId=s.AccountId ORDER BY x.ValuationDate DESC LIMIT 1);
+            CREATE TABLE AskLatestSnapshots AS SELECT s.* FROM Snapshots s JOIN
+              (SELECT Id,ROW_NUMBER() OVER (PARTITION BY AccountId,ValuationDate ORDER BY CapturedAt DESC,Id DESC) AS capture_rank FROM Snapshots) ranked
+              ON ranked.Id=s.Id WHERE ranked.capture_rank=1;
+            CREATE INDEX ask_latest_id ON AskLatestSnapshots(Id);
+            CREATE INDEX ask_latest_account_date ON AskLatestSnapshots(AccountId,ValuationDate);
+            CREATE TABLE AskCurrentSnapshot AS SELECT s.* FROM AskLatestSnapshots s JOIN
+              (SELECT AccountId,MAX(ValuationDate) AS LatestDate FROM AskLatestSnapshots GROUP BY AccountId) latest
+              ON latest.AccountId=s.AccountId AND latest.LatestDate=s.ValuationDate;
+            CREATE INDEX ask_current_id ON AskCurrentSnapshot(Id);
+            CREATE INDEX ask_current_account ON AskCurrentSnapshot(AccountId);
             """;
             views.ExecuteNonQuery();
             tables.Add(new{table="AskLatestSnapshots",columns=snapshots.Columns.Select(c=>new{name=c.Name,type=c.Type}),note="Preferred: one newest capture for each account and valuation date."});
@@ -182,6 +200,9 @@ public sealed class AnalysisSandbox : IDisposable
             // sqlite3 executes subsequent statements on NextResult; inspect them as well under the authorizer.
             if(reader.NextResult())throw new ArgumentException("Use one SELECT result per query.");
             return new(columns,rows,truncated);
+        } catch(SqliteException ex) when(ex.SqliteErrorCode==9) {
+            token.ThrowIfCancellationRequested();
+            throw new TimeoutException("The read-only query exceeded its execution budget. Completed evidence remains available; narrow or simplify this query.",ex);
         } finally {raw.sqlite3_progress_handler(memory.Handle,0,null,null);}
     }
     public void Dispose()=>memory.Dispose();

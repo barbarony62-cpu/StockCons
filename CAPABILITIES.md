@@ -1,4 +1,4 @@
-# AskCons V0.8.0 capabilities
+# AskCons V0.8.1 capabilities
 
 - Saved, expandable portfolio conversations with scrollable question lists and restored exchanges.
 - Scrollable/filterable current-security sidebar; click inserts name plus recorded ID/ticker at cursor.

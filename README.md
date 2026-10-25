@@ -1,4 +1,7 @@
-# AskCons V0.8.0 — portfolio chat and public research
+# AskCons V0.8.1 — portfolio chat and public research
+
+## V0.8.1 database-interruption fix
+The RAM copy now receives its own lookup indexes. Canonical latest-per-date and current-per-account snapshots are computed once before read-only analysis, instead of repeatedly evaluating nested correlated history scans. These changes affect temporary memory only. Query execution limits still apply; interruptions caused by a query budget are reported as an incomplete read, and cancellation retains its separate behavior. A comparison read timeout preserves collected public evidence instead of surfacing raw SQLite Error 9.
 
 ## Run
 Extract the entire portable ZIP, close the older AskCons and run AskCons.exe. Keep Ollama running with qwen3:4b. Leave AI analyst checked. Original database: %LOCALAPPDATA%/Consolidation/consolidation.db.
@@ -35,7 +38,7 @@ The original SQLite database is opened read-only; generated SQL runs only in a s
 Estimates remain permitted with application-appended warnings. Deterministic tools support linear interpolation/extrapolation, regression, compound scenarios and explicit one-point carry-forward assumptions. Inspect dates, currencies, units, assumptions and sources for important conclusions. Model interpretations, scraped figures and inferred classifications can be wrong.
 
 ## Build once
-The full project and GitHub Actions workflow build this single combined V0.8.0 release with all changes.
+The full project and GitHub Actions workflow build this single combined V0.8.1 release with all changes.
 
     dotnet run --project tests/AskCons.Tests.csproj -c Release
     python tools/verify_readonly.py

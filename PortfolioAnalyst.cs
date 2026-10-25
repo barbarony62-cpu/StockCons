@@ -31,7 +31,14 @@ public sealed partial class PortfolioAnalyst
         var evidence=new List<string>();
         var subjects=selectedSecurities?.ToList()??PublicResearch.Resolve(question);
         bool simpleComparison=subjects.Count>=2 && System.Text.RegularExpressions.Regex.IsMatch(question,"better|prefer|compare|עדיף",System.Text.RegularExpressions.RegexOptions.IgnoreCase) && !System.Text.RegularExpressions.Regex.IsMatch(question,"percent|calculate|interpolat|extrapolat|forecast|project|graph|chart|first|history",System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        if(simpleComparison)return await CompareQuick(question,account,sandbox,subjects,research,token,progress);
+        if(simpleComparison) {
+            try{return await CompareQuick(question,account,sandbox,subjects,research,token,progress);}
+            catch(TimeoutException ex){
+                var text="The portfolio read reached its time limit. I cannot verify the local comparison from this attempt; no source data was changed.";
+                if(research!=null)text+="\n\nCollected public evidence (local portfolio comparison incomplete):\n"+research.Evidence;
+                return new(text,ex.ToString()+"\n"+(research?.Audit??"No public requests."),new(){"Local portfolio query incomplete; do not treat missing results as zero holdings."});
+            }
+        }
         bool comparison=subjects.Count>=2;
         if(comparison)session.AnalysisEvidence="";
         var ownershipFacts=QuestionContract.RequiredOperation(question,new ConversationSession())=="holding_first_owned"?sandbox.OwnershipFacts(question):new List<string>();
