@@ -1,17 +1,17 @@
 #define MyAppName "AskCons"
-#define MyAppVersion "0.8.1"
+#define MyAppVersion "0.8.2"
 [Setup]
 AppId={{7B61721B-6A3F-46E0-A0AE-1C724EF30C41}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
-AppVerName=AskCons V0.8.1
+AppVerName=AskCons V0.8.2
 AppPublisher=AskCons
 DefaultDirName={localappdata}\Programs\AskCons
 DefaultGroupName=AskCons
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=installer-output
-OutputBaseFilename=AskCons-Setup-0.8.1
+OutputBaseFilename=AskCons-Setup-0.8.2
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern

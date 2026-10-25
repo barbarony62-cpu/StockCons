@@ -170,6 +170,7 @@ internal static class Program {
    finally {File.Delete(oldPath);}
    AnalysisChecks.Run(path,Check);
    LargeHistoryChecks.Run(Check);
+   DirectChecks.Run(Check);
    if(Environment.GetEnvironmentVariable("ASKCONS_LIVE_080")=="1")AnalysisChecks.Live080(path,Check);
    if(Environment.GetEnvironmentVariable("ASKCONS_LIVE_RESEARCH")=="1")AnalysisChecks.LiveResearch(path,Check);
    Check(hash.SequenceEqual(SHA256.HashData(File.ReadAllBytes(path))),"All financial queries leave database bytes unchanged");
@@ -196,6 +197,12 @@ internal static class Program {
    typeof(MainWindow).GetMethod("RenderResult",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance)!.Invoke(window,new object[]{historyRows,fullHistory.Subtitle,fullHistory.Note,fullHistory.Text});
    root.Measure(new System.Windows.Size(1280,900)); root.Arrange(new System.Windows.Rect(0,0,1280,900)); root.UpdateLayout();
    Check(((System.Windows.Controls.DataGrid)window.FindName("ResultsGrid")).Items.Count==historyRows.Count,"Compiled WPF history table renders event and quantity rows");
+   Check(window.FindName("AnswerText") is System.Windows.Controls.TextBox selectable&&selectable.IsReadOnly,"Current answer is selectable read-only text with native copy support");
+   var copyText=MainWindow.GridText((System.Windows.Controls.DataGrid)window.FindName("ResultsGrid"));
+   Check(copyText.Contains("Period")&&copyText.Contains("First owned"),"Table copy includes headers and underlying recorded rows");
+   var reading=window.BuildReadingWindow("Conversation",()=>string.Join("\n",Enumerable.Range(1,200).Select(i=>"Question / answer "+i)));
+   Check(reading.WindowState==System.Windows.WindowState.Maximized&&MainWindow.VisibleText((System.Windows.DependencyObject)reading.Content).Contains("Question / answer 200"),"Full-screen reader retains all conversation lines in a maximized selectable view");reading.Close();
+   Check(window.ScreenText().Contains("Synthetic A")&&window.ScreenText().Contains("Tesla")&&window.ScreenText().Contains("Elapsed:"),"Whole-screen text export includes account, securities and timer/status text");
    if (Environment.GetEnvironmentVariable("ASKCONS_PREVIEW") is string preview) {
     var bitmap=new System.Windows.Media.Imaging.RenderTargetBitmap(1280,900,96,96,System.Windows.Media.PixelFormats.Pbgra32);
     bitmap.Render(root); var encoder=new System.Windows.Media.Imaging.PngBitmapEncoder();
@@ -249,6 +256,7 @@ internal static class Program {
   }
  }
 }
+
 
 
 

@@ -25,6 +25,8 @@ internal static class LargeHistoryChecks {
     var count=sandbox.Query("SELECT s.AccountId,(SELECT COUNT(*) FROM AskCurrentHoldings h WHERE h.SnapshotId=s.Id) AS TotalPositions FROM AskCurrentSnapshot s");
     check(result.Rows.Count==2&&Convert.ToInt64(count.Rows[0][1])==8&&clock.Elapsed.TotalSeconds<5,"Comparison reads and whole-portfolio counts stay within budget over 12000 snapshots / 96000 holdings");
    }
+   var monthly=DirectPortfolio.TryCalculate("How much did my portfolio change month by month in 1995?",new(1,"Synthetic A"),path,CancellationToken.None)!;
+   check(monthly.Answer.Data is System.Data.DataTable m&&m.Rows.Count==12&&m.Rows[0]["Change NIS"].ToString()==62m.ToString("N2"),"Large-history monthly request computes twelve complete months without AI, web or raw-row truncation");
    using(var timed=new AnalysisSandbox(path,1)) {
     bool translated=false;try{timed.Query("WITH RECURSIVE x(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM x WHERE n<1000000000) SELECT SUM(n) FROM x");}catch(TimeoutException){translated=true;}
     check(translated&&Convert.ToInt64(timed.Query("SELECT 1").Rows[0][0])==1,"Execution-budget interruption becomes a clear timeout and does not poison later reads");

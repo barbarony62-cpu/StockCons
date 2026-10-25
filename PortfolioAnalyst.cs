@@ -117,7 +117,7 @@ public sealed partial class PortfolioAnalyst
             AnalysisStep plan;
             try {plan=JsonSerializer.Deserialize<AnalysisStep>(content,new JsonSerializerOptions{UnmappedMemberHandling=System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow})??throw new JsonException();}
             catch(JsonException){messages.Add(new("user","Invalid structured output. Return one valid schema object."));continue;}
-            messages.Add(new("assistant",content)); trace?.Invoke(content);
+            messages.Add(new("assistant",content)); details.Add("MODEL PLAN step "+(step+1)+"\n"+Clip(content,4000)); trace?.Invoke(content);
             if(plan.action=="answer"){
                 if(!final && (wantsEstimate&&!estimated || wantsPercent&&!calculated)) {
                     messages.Add(new("user","A requested calculation is still unfinished. Use its tool before answering."));
@@ -226,7 +226,7 @@ public sealed partial class PortfolioAnalyst
         if(warnings.Count>0)answer+="\n\nESTIMATION / DATA WARNINGS\n"+string.Join("\n\n",warnings);
         // Retain tool evidence separately from conversational claims for the next turn.
         if(evidence.Count>0)session.AnalysisEvidence=string.Join("\n",evidence.TakeLast(2).Select(x=>Clip(x,2000)));
-        var fullDetails="Account: "+account.Name+" ("+account.Id+")\n"+JsonSerializer.Serialize(sandbox.Schema())+"\n\n"+string.Join("\n\n",details);
+        var fullDetails="ORIGINAL QUESTION\n"+question+"\nAccount: "+account.Name+" ("+account.Id+")\n"+JsonSerializer.Serialize(sandbox.Schema())+"\n\n"+string.Join("\n\n",details);
         return new(answer,fullDetails,warnings,chart);
     }
     private static string SystemPrompt(Account account,object schema,ConversationSession session)=>$$"""

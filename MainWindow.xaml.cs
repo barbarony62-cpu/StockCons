@@ -23,11 +23,7 @@ public partial class MainWindow : Window
     private readonly LocalInterpreter interpreter = new();
     private readonly PortfolioAnalyst analyst = new();
     private string lastAnalysisDetails="";
-    private void AnalysisDetailsClick(object sender,RoutedEventArgs e) {
-        var text=new TextBox{Text=lastAnalysisDetails,IsReadOnly=true,TextWrapping=TextWrapping.Wrap,AcceptsReturn=true,
-            VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,Padding=new Thickness(12)};
-        new Window{Title="Local analysis details",Owner=this,Width=900,Height=650,Content=text}.Show();
-    }
+    private void AnalysisDetailsClick(object sender,RoutedEventArgs e)=>OpenReadingWindow("Analysis details",()=>lastAnalysisDetails);
     private readonly System.Diagnostics.Stopwatch elapsed = new();
     private readonly System.Windows.Threading.DispatcherTimer elapsedTimer = new(){Interval=TimeSpan.FromSeconds(1)};
     private ConversationArchive archive=new();
@@ -69,7 +65,7 @@ public partial class MainWindow : Window
     private void AddBubble(string role,string text) {
         Transcript.Children.Add(new Border { Background = role == "You" ? Brushes.AliceBlue : Brushes.WhiteSmoke,
             CornerRadius = new CornerRadius(8), Padding = new Thickness(12), Margin = new Thickness(0,0,0,8),
-            Child = new TextBlock { Text = role + ": " + text, TextWrapping = TextWrapping.Wrap, FontSize=15 } });
+            Child = new TextBox { Text = role + ": " + text, TextWrapping = TextWrapping.Wrap, FontSize=15, IsReadOnly=true, AcceptsReturn=true, BorderThickness=new Thickness(0), Background=Brushes.Transparent } });
 
         ConversationScroll.ScrollToEnd();
     }
@@ -88,6 +84,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        InstallCopySupport();
         elapsedTimer.Tick+=(_,_)=>ElapsedText.Text="Elapsed: "+elapsed.Elapsed.ToString(@"mm\:ss");
         Closed += (_, _) => { requestCancellation?.Cancel(); elapsedTimer.Stop(); conversationGeneration++; };
         Loaded += (_, _) => { Refresh(); LoadHistory(); QuestionBox.Focus(); };
@@ -194,22 +191,32 @@ public partial class MainWindow : Window
         void Reply(string text) { AddTurn(session, "AskCons", text); ShowText(text); }
         try
         {
+            lastAnalysisDetails="ORIGINAL QUESTION\n"+question+"\nACCOUNT\n"+account.Name+"\nSTAGE\nRouting local calculation before web or AI.\n";AnalysisDetailsButton.IsEnabled=true;
             if(AnalystModeBox.IsChecked==true) {
+                AiStatus.Text="Calculating from local portfolio records...";
+                var direct=await Task.Run(()=>DirectPortfolio.TryCalculate(question,account,ReadOnlyPortfolio.DefaultPath,token),token);
+                if(direct!=null) {
+                    if(!Active())return;lastAnalysisDetails=direct.Details;AnalysisDetailsButton.IsEnabled=true;
+                    Reply(direct.Answer.Text);preferredPresentation=direct.Answer.Data is SeriesResult?"graph":"table";RenderResult(direct.Answer.Data,direct.Answer.Subtitle,direct.Answer.Note,direct.Answer.Text);
+                    AiStatus.Text="Local calculation complete · web and model skipped.";return;
+                }
+                lastAnalysisDetails+="ROUTE\nFlexible AI analysis; no safe deterministic route matched.\n";
                 var selectedSecurities=ResearchSelection.Resolve(question,portfolioSecurities,PublicSecurityBox.Text);
                 ResearchReport? research=null;
-                if(WebResearchBox.IsChecked==true) {
+                if(WebResearchBox.IsChecked==true && ResearchPolicy.Relevant(question)) {
                     AiStatus.Text="Collecting public English and Hebrew sources...";
                     var companies=selectedSecurities;
                     if(companies.Count==0)research=new("No security could be resolved safely. Enter public names/IDs in the Public securities field or click a portfolio security. No public request was sent.","No outbound requests.");
-                    else research=await new OpenResearch().Fetch(companies,token,status=>Dispatcher.InvokeAsync(()=>{if(Active())AiStatus.Text=status;}));
+                    else research=await new OpenResearch().Fetch(companies,token,status=>Dispatcher.InvokeAsync(()=>{if(Active()){AiStatus.Text=status;lastAnalysisDetails+="STAGE "+elapsed.Elapsed+" "+status+"\n";}}));
                 }
+                lastAnalysisDetails+="WEB ROUTING\n"+(research==null?"Skipped: external evidence not requested/relevant.":research.Audit)+"\n";
                 var analystResult=await analyst.Chat(question,session,account,ReadOnlyPortfolio.DefaultPath,token,
-                    status=>Dispatcher.InvokeAsync(()=>{if(Active())AiStatus.Text=status;}),research:research,selectedSecurities:selectedSecurities);
+                    status=>Dispatcher.InvokeAsync(()=>{if(Active()){AiStatus.Text=status;lastAnalysisDetails+="STAGE "+elapsed.Elapsed+" "+status+"\n";}}),research:research,selectedSecurities:selectedSecurities);
                 token.ThrowIfCancellationRequested(); if(!Active())return;
                 Reply(analystResult.Text);
                 AnswerNote.Text=analystResult.Warnings.Count>0?"Estimated / partial data — see warnings in the answer.":"AI interpretation · source queries and calculations are in Analysis details.";
                 AnswerNote.Foreground=analystResult.Warnings.Count>0?Brushes.DarkGoldenrod:Brushes.SlateGray;
-                lastAnalysisDetails=analystResult.Details; AnalysisDetailsButton.IsEnabled=true;
+                lastAnalysisDetails+="\n"+analystResult.Details; AnalysisDetailsButton.IsEnabled=true;
                 AiStatus.Text="Local analysis complete · source database unchanged.";
                 if(analystResult.Chart!=null) {
                     preferredPresentation="graph";
@@ -278,7 +285,7 @@ public partial class MainWindow : Window
             RenderResult(result.Data, result.Subtitle, result.Note, result.Text);
         }
         catch (OperationCanceledException) { if (generation == conversationGeneration) Reply(cancellation.IsCancellationRequested&&elapsed.Elapsed<TimeSpan.FromMinutes(4)?"Request cancelled by you.":"The response time limit was reached. The local model may be overloaded. No database data was changed."); }
-        catch (Exception ex) { if (generation == conversationGeneration) Reply("Unable to answer: " + ex.Message); }
+        catch (Exception ex) { if (generation == conversationGeneration) {lastAnalysisDetails+="\nFAILURE at "+elapsed.Elapsed+"\n"+ex+"\n"+ex.Data["AskConsDiagnostics"];AnalysisDetailsButton.IsEnabled=true;Reply("Unable to complete this stage: " + ex.Message+". Analysis details contains the question, routing and failure.");} }
         finally {
             elapsed.Stop();elapsedTimer.Stop();ElapsedText.Text="Elapsed: "+elapsed.Elapsed.ToString(@"mm\:ss")+" · finished";
             requestCancellation = null; isAsking = false; AskButton.IsEnabled = true;
@@ -324,9 +331,14 @@ public partial class MainWindow : Window
         ResultsGrid.Visibility = Visibility.Collapsed;
         ChartHost.Visibility = Visibility.Collapsed;
         ShowDataButton.Visibility = Visibility.Collapsed;
-        chartPoints = null;
+        chartPoints = null; ResultsGrid.AutoGenerateColumns=false;
         var mode = DisplayMode == "Automatic" ? preferredPresentation switch { "text" => "Text", "table" => "Table", "graph" => "Graph", _ => "Automatic" } : DisplayMode;
-        if (result is List<RankingRow> rows)
+        if(result is System.Data.DataTable table) {
+            AnswerHeading.Text="Calculated portfolio records";
+            if(mode=="Text"){AnswerScroll.Visibility=Visibility.Visible;return;}
+            ResultsGrid.Columns.Clear();ResultsGrid.AutoGenerateColumns=true;ResultsGrid.RowHeight=double.NaN;ResultsGrid.MinRowHeight=32;ResultsGrid.ItemsSource=table.DefaultView;ResultsGrid.Visibility=Visibility.Visible;
+        }
+        else if (result is List<RankingRow> rows)
         {
             AnswerHeading.Text = "Holdings";
             if (mode == "Text") { AnswerScroll.Visibility = Visibility.Visible; return; }

@@ -106,8 +106,9 @@ public sealed class OpenResearch {
  }
  private sealed record SearchResult(PublicCompany Company,Uri Uri,List<PublicSource> Sources,string Audit,string? Error);
  private static async Task<SearchResult> ReadSearch(PublicCompany c,Uri uri,CancellationToken ct) {
-  try{return new(c,uri,PublicResearch.Parse(await PublicWeb.Get(uri,ct)),"PUBLIC SEARCH GET "+uri.AbsoluteUri,null);}
+  try{return new(c,uri,PublicResearch.Parse(await PublicWeb.Get(uri,ct)).Where(s=>PublicRelevance.Matches(c,s)).ToList(),"PUBLIC SEARCH GET "+uri.AbsoluteUri,null);}
   catch(Exception ex){return new(c,uri,new(),"PUBLIC SEARCH GET "+uri.AbsoluteUri,"Search unavailable: "+(ex is OperationCanceledException?"time budget reached":ex.Message));}
  }
 }
+
 

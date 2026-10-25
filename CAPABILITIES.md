@@ -1,13 +1,11 @@
-# AskCons V0.8.1 capabilities
+# AskCons V0.8.2 capabilities
 
-- Saved, expandable portfolio conversations with scrollable question lists and restored exchanges.
-- Scrollable/filterable current-security sidebar; click inserts name plus recorded ID/ticker at cursor.
-- Elapsed request timer, stage information and streamed comparison progress.
-- Optional public research without confirmation popups or the former fixed-company restriction.
-- English/Hebrew public searches, direct accessible public HTML extraction and optional structured market metadata.
-- Public identity inputs separated from private portfolio values; local inference; public request/source audit.
-- Focused comparisons, bounded model work and preserved-evidence fallback on slow/invalid generation.
-- English analyst explanations even for Hebrew questions/sources.
-- Existing general read-only SQL, arithmetic, charts, recorded ownership, history, interpolation and extrapolation/scenario tools.
+- Local-first monthly changes/charts, current/as-of values, explicit-metric holdings rankings/allocation, and resolved first-owned dates.
+- Compact C# calculations and explicit recorded dates; AI remains available for flexible interpretation and estimation.
+- Web research gated by relevance, with public security result filtering and retained English/Hebrew sources.
+- Original question, route, SQL, counts, timings, type profile, model plans and errors in diagnostics.
+- Separate full-screen current-answer, transcript and diagnostic readers, with selectable text and Copy all.
+- Native text/table copying, right-click label copying, full-table export, whole-screen text and screenshot copy.
+- Existing accordion history, name-plus-ID insertion, timer, scoped/all-account analysis, read-only protection and warnings retained.
 
-Coverage depends on publicly accessible sources. PDFs, paywalls and JavaScript-only sites may require additional adapters. Names/IDs may need clarification or exchange mapping. A market-response failure does not prevent broader web analysis. Dates, units, currency and assumptions remain essential; generated conclusions are not independently fact-checked.
+See README.md and VALIDATION.md for supported direct routes, copy methods, tests and limitations.
