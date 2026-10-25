@@ -1,28 +1,13 @@
-# AskCons V0.7.0 capability map
+# AskCons V0.8.0 capabilities
 
-The default analyst explores the available schema within the selected account or explicit All accounts / full database scope instead of choosing only from the classic operation catalog.
+- Saved, expandable portfolio conversations with scrollable question lists and restored exchanges.
+- Scrollable/filterable current-security sidebar; click inserts name plus recorded ID/ticker at cursor.
+- Elapsed request timer, stage information and streamed comparison progress.
+- Optional public research without confirmation popups or the former fixed-company restriction.
+- English/Hebrew public searches, direct accessible public HTML extraction and optional structured market metadata.
+- Public identity inputs separated from private portfolio values; local inference; public request/source audit.
+- Focused comparisons, bounded model work and preserved-evidence fallback on slow/invalid generation.
+- English analyst explanations even for Hebrew questions/sources.
+- Existing general read-only SQL, arithmetic, charts, recorded ownership, history, interpolation and extrapolation/scenario tools.
 
-| Capability | Implementation |
-|---|---|
-| Conversational investigation and follow-ups | Local model tool loop, recent chat and retained tool evidence |
-| Flexible database calculations | SELECT/CTE/window functions against a protected RAM copy |
-| Arithmetic | Deterministic expression parser; no eval, scripting or external execution |
-| Interpolation/extrapolation | Dated-series tools, mandatory warnings and explicit assumptions |
-| General inference / what-if calculations | SQL with inferred/scenario provenance and assumption warnings |
-| Graphs | Date/value query results rendered in the existing chart interface |
-| Ownership history | Stored events, exact event labels, AskFirstOwned and independently retrieved grounding |
-| Annual / net-worth / other account-linked records | Included automatically when present and safely account-scoped |
-| Source verification | Analysis details with schema, SQL, results, formulas and tool errors |
-| Database writes / bank actions / external programs | Unavailable to the model |
-
-Financial meanings are not interchangeable: position value change is not necessarily investment profit, inferred exposure is not authoritative fund look-through, and an ownership event is not a purchase transaction. The analyst may discuss approximations while labelling their assumptions.
-
-The earlier classic query engine remains available with AI analyst unchecked. Its operation restrictions do not apply to the default analyst flow.
-
-
-
-## V0.7.0 additions
-- English-only analyst responses with repair of Hebrew prose.
-- Exact public identifiers and scoped current-holdings prefetch for named comparisons; unrelated security evidence rejected.
-- Optional, previewed Google News public research for the documented 20-company directory. Dated source excerpts and request audit; no full-page verification or live market feed.
-- No arbitrary model-generated network request, source URL fetch, portfolio upload or cloud inference.
+Coverage depends on publicly accessible sources. PDFs, paywalls and JavaScript-only sites may require additional adapters. Names/IDs may need clarification or exchange mapping. A market-response failure does not prevent broader web analysis. Dates, units, currency and assumptions remain essential; generated conclusions are not independently fact-checked.

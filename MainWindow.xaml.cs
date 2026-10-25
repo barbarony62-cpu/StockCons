@@ -28,11 +28,23 @@ public partial class MainWindow : Window
             VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,Padding=new Thickness(12)};
         new Window{Title="Local analysis details",Owner=this,Width=900,Height=650,Content=text}.Show();
     }
-    private readonly ObservableCollection<string> questions = new();
-    private readonly Dictionary<string, List<string>> saved = new();
+    private readonly System.Diagnostics.Stopwatch elapsed = new();
+    private readonly System.Windows.Threading.DispatcherTimer elapsedTimer = new(){Interval=TimeSpan.FromSeconds(1)};
+    private ConversationArchive archive=new();
+    private readonly Dictionary<long,string> activeConversations=new();
+    private List<PortfolioSecurity> portfolioSecurities=new();
+    private static readonly string ArchivePath=System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"AskCons","conversations.json");
+    private SavedConversation CurrentConversation(long accountId) {
+        if(activeConversations.TryGetValue(accountId,out var id)&&archive.Conversations.FirstOrDefault(c=>c.Id==id) is {} found)return found;
+        var created=archive.Create(accountId);activeConversations[accountId]=created.Id;return created;
+    }
+    private void SaveArchive(){try{archive.Save(ArchivePath);}catch(Exception ex){AiStatus.Text="Conversation could not be saved: "+ex.Message;}}
+    private void SecurityFilterChanged(object sender,TextChangedEventArgs e){if(SecuritiesList==null)return;var q=SecurityFilter.Text.Trim();SecuritiesList.ItemsSource=portfolioSecurities.Where(x=>x.Name.Contains(q,StringComparison.OrdinalIgnoreCase)||x.Id.Contains(q,StringComparison.OrdinalIgnoreCase)).ToList();}
+    private void SecuritySelected(object sender,SelectionChangedEventArgs e){if(SecuritiesList.SelectedItem is not PortfolioSecurity security)return;var inserted=QuestionInsertion.Insert(QuestionBox.Text,QuestionBox.SelectionStart,QuestionBox.SelectionLength,security);QuestionBox.Text=inserted.Text;QuestionBox.CaretIndex=inserted.Caret;SecuritiesList.SelectedItem=null;QuestionBox.Focus();}
+    private async Task LoadSecurities(long id){try{var values=await Task.Run(()=>db.CurrentSecurities(id));if((AccountBox.SelectedItem as Account)?.Id!=id)return;portfolioSecurities=values;SecurityFilterChanged(this,new TextChangedEventArgs(TextBox.TextChangedEvent,UndoAction.None));}catch(Exception ex){AiStatus.Text="Securities list unavailable: "+ex.Message;}}
+
     private static readonly string HistoryPath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AskCons", "questions.json");
     private string preferredPresentation = "auto";
-    private bool loadingHistory;
     private readonly Dictionary<long, ConversationSession> sessions = new();
     private ConversationSession Session(long id) { if (!sessions.TryGetValue(id, out var s)) sessions[id] = s = new(); return s; }
     private CancellationTokenSource? requestCancellation;
@@ -40,20 +52,25 @@ public partial class MainWindow : Window
     private void CancelClick(object sender, RoutedEventArgs e) => requestCancellation?.Cancel();
     private void NewConversationClick(object sender, RoutedEventArgs e) {
         requestCancellation?.Cancel(); conversationGeneration++;
-        if (AccountBox.SelectedItem is Account a) sessions[a.Id] = new();
+        if (AccountBox.SelectedItem is Account a) {sessions[a.Id] = new();var c=archive.Create(a.Id);activeConversations[a.Id]=c.Id;SaveArchive();UpdateHistory();}
         lastAnalysisDetails=""; AnalysisDetailsButton.IsEnabled=false;
         Transcript.Children.Clear(); ShowText("New conversation. Ask a question.");
     }
     private void AddTurn(ConversationSession session, string role, string text) {
         session.Turns.Add((role,text));
-        if (session.Turns.Count > 100) session.Turns.RemoveAt(0);
+
+        if(AccountBox.SelectedItem is Account a) {
+            var stored=CurrentConversation(a.Id);stored.Messages=session.Turns.Select(t=>new SavedMessage{Role=t.Role,Text=t.Text}).ToList();stored.Updated=DateTime.UtcNow;
+            if(role=="You"&&stored.Title=="New conversation")stored.Title=text.Length>65?text[..65]+"…":text;
+            SaveArchive();UpdateHistory();
+        }
         AddBubble(role,text);
     }
     private void AddBubble(string role,string text) {
         Transcript.Children.Add(new Border { Background = role == "You" ? Brushes.AliceBlue : Brushes.WhiteSmoke,
             CornerRadius = new CornerRadius(8), Padding = new Thickness(12), Margin = new Thickness(0,0,0,8),
             Child = new TextBlock { Text = role + ": " + text, TextWrapping = TextWrapping.Wrap, FontSize=15 } });
-        if (Transcript.Children.Count > 100) Transcript.Children.RemoveAt(0);
+
         ConversationScroll.ScrollToEnd();
     }
     private bool isAsking;
@@ -71,54 +88,44 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        Closed += (_, _) => { requestCancellation?.Cancel(); conversationGeneration++; };
+        elapsedTimer.Tick+=(_,_)=>ElapsedText.Text="Elapsed: "+elapsed.Elapsed.ToString(@"mm\:ss");
+        Closed += (_, _) => { requestCancellation?.Cancel(); elapsedTimer.Stop(); conversationGeneration++; };
         Loaded += (_, _) => { Refresh(); LoadHistory(); QuestionBox.Focus(); };
     }
 
-    private void LoadHistory()
-    {
-        try
-        {
-            if (File.Exists(HistoryPath))
-            {
-                var entries = JsonSerializer.Deserialize<Dictionary<string, List<string>>>(File.ReadAllText(HistoryPath));
-                if (entries != null) foreach (var item in entries) saved[item.Key] = item.Value;
+    private void LoadHistory() {
+        archive=ConversationArchive.Load(ArchivePath);
+        if(archive.Conversations.Count==0 && File.Exists(HistoryPath))try {
+            var old=JsonSerializer.Deserialize<Dictionary<string,List<string>>>(File.ReadAllText(HistoryPath));
+            if(old!=null)foreach(var pair in old)if(long.TryParse(pair.Key,out var id)) {var c=archive.Create(id);c.Title="Imported previous questions";c.Messages=pair.Value.AsEnumerable().Reverse().Select(q=>new SavedMessage{Role="You",Text=q}).ToList();}
+            SaveArchive();
+        }catch{}
+        if(AccountBox.SelectedItem is Account a && archive.Conversations.Where(c=>c.AccountId==a.Id).OrderByDescending(c=>c.Updated).FirstOrDefault() is {} last)OpenConversation(last,null);
+        UpdateHistory();
+    }
+    private void UpdateHistory() {
+        if(ConversationList==null)return;ConversationList.Children.Clear();if(AccountBox.SelectedItem is not Account a)return;
+        foreach(var c in archive.Conversations.Where(c=>c.AccountId==a.Id).OrderByDescending(c=>c.Updated)) {
+            var content=new StackPanel();var open=new Button{Content="Open / resume conversation",Padding=new Thickness(5),Margin=new Thickness(0,3,0,6)};
+            open.Click+=(_,_)=>OpenConversation(c,null);content.Children.Add(open);
+            foreach(var q in c.Messages.Where(m=>m.Role=="You")) {
+                var button=new Button{Content=new TextBlock{Text=q.Text,TextWrapping=TextWrapping.Wrap},HorizontalContentAlignment=HorizontalAlignment.Left,Padding=new Thickness(6),Margin=new Thickness(0,2,0,2)};
+                button.Click+=(_,_)=>OpenConversation(c,q.Text);content.Children.Add(button);
             }
+            var expander=new Expander{Header=new TextBlock{Text=c.Title,TextWrapping=TextWrapping.Wrap},Content=new ScrollViewer{Content=content,MaxHeight=300,VerticalScrollBarVisibility=ScrollBarVisibility.Auto},Margin=new Thickness(0,4,0,8),IsExpanded=activeConversations.TryGetValue(a.Id,out var id)&&id==c.Id};
+            ConversationList.Children.Add(expander);
         }
-        catch { /* An invalid local history file must never prevent startup. */ }
-        UpdateHistory();
     }
-    private void UpdateHistory()
-    {
-        loadingHistory = true;
-        questions.Clear();
-        if (saved.TryGetValue(AccountKey, out var list)) foreach (var q in list) questions.Add(q);
-        HistoryList.ItemsSource = questions;
-        loadingHistory = false;
+    private void OpenConversation(SavedConversation stored,string? draft) {
+        requestCancellation?.Cancel();conversationGeneration++;activeConversations[stored.AccountId]=stored.Id;
+        var session=new ConversationSession();foreach(var m in stored.Messages)session.Turns.Add((m.Role,m.Text));sessions[stored.AccountId]=session;
+        Transcript.Children.Clear();foreach(var m in stored.Messages)AddBubble(m.Role,m.Text);
+        ShowText(stored.Messages.LastOrDefault(m=>m.Role=="AskCons")?.Text??"Conversation opened. Ask a follow-up question.");
+        lastAnalysisDetails="";AnalysisDetailsButton.IsEnabled=false;
+        if(draft!=null){QuestionBox.Text=draft;QuestionBox.CaretIndex=draft.Length;}
+        UpdateHistory();QuestionBox.Focus();
     }
-    private void Remember(string q)
-    {
-        var key = AccountKey;
-        if (string.IsNullOrEmpty(key)) return;
-        if (!saved.TryGetValue(key, out var list)) saved[key] = list = new();
-        list.RemoveAll(x => string.Equals(x, q, StringComparison.OrdinalIgnoreCase));
-        list.Insert(0, q);
-        if (list.Count > 100) list.RemoveRange(100, list.Count - 100);
-        try
-        {
-            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(HistoryPath)!);
-            File.WriteAllText(HistoryPath, JsonSerializer.Serialize(saved));
-        }
-        catch { /* History is optional. */ }
-        UpdateHistory();
-    }
-    private void HistorySelected(object sender, SelectionChangedEventArgs e)
-    {
-        if (loadingHistory || HistoryList.SelectedItem is not string q) return;
-        HistoryList.SelectedItem = null;
-        QuestionBox.Text = q;
-        _ = AskAsync();
-    }
+    private void Remember(string q) {CurrentConversation((AccountBox.SelectedItem as Account)!.Id);}
     private void QuestionKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) == 0)
@@ -150,6 +157,7 @@ public partial class MainWindow : Window
         if(a.Id==-1)AnalystModeBox.IsChecked=true;
         ShowText($"Selected account: {a.Name}. Ask a question below.");
         UpdateHistory();
+        _=LoadSecurities(a.Id);
     }
     private async void TestAiClick(object sender, RoutedEventArgs e)
     {
@@ -175,10 +183,11 @@ public partial class MainWindow : Window
         Remember(question);
         AddTurn(session, "You", question);
         QuestionBox.Clear();
+        elapsed.Restart();elapsedTimer.Start();ElapsedText.Text="Elapsed: 00:00";
         isAsking = true;
         AskButton.IsEnabled = false; CancelButton.IsEnabled = true;
         AskButton.Content = "Working...";
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(10));
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(4));
         requestCancellation = cancellation;
         var token = cancellation.Token;
         bool Active() => generation == conversationGeneration && !token.IsCancellationRequested;
@@ -186,20 +195,16 @@ public partial class MainWindow : Window
         try
         {
             if(AnalystModeBox.IsChecked==true) {
+                var selectedSecurities=ResearchSelection.Resolve(question,portfolioSecurities,PublicSecurityBox.Text);
                 ResearchReport? research=null;
                 if(WebResearchBox.IsChecked==true) {
-                    var companies=PublicResearch.Resolve(question).Take(4).ToList();
-                    if(companies.Count==0)research=new("No public request sent: no supported company explicitly named in this question. Name a company/ticker; see Web research tooltip.","No outbound requests.");
-                    else {
-                        var preview=string.Join("\n\n",companies.Select(c=>PublicResearch.RequestUri(c).AbsoluteUri));
-                        if(MessageBox.Show("Only these fixed public searches will be sent. No portfolio data or conversation is included. Company names reveal research interests.\n\n"+preview,"Preview public requests",MessageBoxButton.OKCancel,MessageBoxImage.Information)==MessageBoxResult.OK) {
-                            try {AiStatus.Text="Retrieving public search excerpts...";research=await new PublicResearch().Fetch(companies,token);}
-                            catch(Exception ex) when(ex is not OperationCanceledException){research=new("Public research failed. Do not claim current web facts. Continue with local evidence. Reason: "+ex.Message,preview+"\nRequest failed.");}
-                        } else research=new("Web research cancelled; use local evidence only.","User cancelled before network access.");
-                    }
+                    AiStatus.Text="Collecting public English and Hebrew sources...";
+                    var companies=selectedSecurities;
+                    if(companies.Count==0)research=new("No security could be resolved safely. Enter public names/IDs in the Public securities field or click a portfolio security. No public request was sent.","No outbound requests.");
+                    else research=await new OpenResearch().Fetch(companies,token,status=>Dispatcher.InvokeAsync(()=>{if(Active())AiStatus.Text=status;}));
                 }
                 var analystResult=await analyst.Chat(question,session,account,ReadOnlyPortfolio.DefaultPath,token,
-                    status=>Dispatcher.InvokeAsync(()=>{if(Active())AiStatus.Text=status;}),research:research);
+                    status=>Dispatcher.InvokeAsync(()=>{if(Active())AiStatus.Text=status;}),research:research,selectedSecurities:selectedSecurities);
                 token.ThrowIfCancellationRequested(); if(!Active())return;
                 Reply(analystResult.Text);
                 AnswerNote.Text=analystResult.Warnings.Count>0?"Estimated / partial data — see warnings in the answer.":"AI interpretation · source queries and calculations are in Analysis details.";
@@ -272,9 +277,10 @@ public partial class MainWindow : Window
             preferredPresentation = intent.presentation ?? "auto";
             RenderResult(result.Data, result.Subtitle, result.Note, result.Text);
         }
-        catch (OperationCanceledException) { if (generation == conversationGeneration) Reply("Request cancelled or timed out. You can retry."); }
+        catch (OperationCanceledException) { if (generation == conversationGeneration) Reply(cancellation.IsCancellationRequested&&elapsed.Elapsed<TimeSpan.FromMinutes(4)?"Request cancelled by you.":"The response time limit was reached. The local model may be overloaded. No database data was changed."); }
         catch (Exception ex) { if (generation == conversationGeneration) Reply("Unable to answer: " + ex.Message); }
         finally {
+            elapsed.Stop();elapsedTimer.Stop();ElapsedText.Text="Elapsed: "+elapsed.Elapsed.ToString(@"mm\:ss")+" · finished";
             requestCancellation = null; isAsking = false; AskButton.IsEnabled = true;
             CancelButton.IsEnabled = false; AskButton.Content = "Ask →"; QuestionBox.Focus();
         }

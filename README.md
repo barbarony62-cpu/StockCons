@@ -1,107 +1,45 @@
-# AskCons V0.7.0 — open-ended local portfolio analyst
+# AskCons V0.8.0 — portfolio chat and public research
 
 ## Run
-Extract the portable ZIP, close the older AskCons, and run AskCons.exe.
-Start your existing Ollama installation with qwen3:4b available.
-Choose an account (or **All accounts / full database** for cross-account analysis) and leave **AI analyst** checked (the default).
+Extract the entire portable ZIP, close the older AskCons and run AskCons.exe. Keep Ollama running with qwen3:4b. Leave AI analyst checked. Original database: %LOCALAPPDATA%/Consolidation/consolidation.db.
 
-The default chat is no longer restricted to the classic operation catalog. It can inspect the available schema, read relevant records, compose SQL calculations, use arithmetic tools, infer values with explicit assumptions, interpolate, extrapolate, and discuss the results.
+Keep OLLAMA_HOST=127.0.0.1:11434 and OLLAMA_NO_CLOUD=1 unchanged. Local inference and portfolio analysis stay on your computer. Optional web collection is a separate HTTPS component.
 
-## Public research and English answers
-All analyst explanations are instructed to use English, including for Hebrew questions. Hebrew model answers are retried in English. Named multi-company comparisons get fresh relevant evidence and reject unrelated holding results and unrequested first-owned lookups.
+## Conversations, securities and timer
+- Left: expandable conversations for the selected portfolio. Expand to see every saved question; both the overall list and expanded contents scroll. Open/resume restores the exchange. Clicking a question restores that conversation and copies the question into the draft; it does not automatically send it. New conversation starts a separate thread.
+- Questions AND answers are stored locally in %LOCALAPPDATA%/AskCons/conversations.json. Old questions.json entries are imported into an explicitly labelled group; answers that were never saved cannot be reconstructed. Saved tool evidence is not reused as verified data after reopening; the analyst can query again.
+- Right: current securities for the selected portfolio, with account labels and recorded ID/ticker. Filter by name or ID. Click to insert both name and ID at the cursor without erasing the draft. All-accounts scope lists each portfolio's current securities. Unrecorded IDs are labelled missing, never invented.
+- Elapsed time starts on Enter or Ask, updates while working, and remains visible after completion, failure or cancellation. Stage text identifies public collection, local analysis or generated text.
 
-To research Tesla and Apple, check **Web research**, then ask "Which is better, Tesla or Apple? Compare risks and fit within my portfolio." A preview shows the exact public URLs before any network request. Cancel keeps analysis local. Leave the checkbox off for local-only analysis.
+## Public research: any identified security, English and Hebrew sources
+Enable Web research; there is no confirmation popup. Private quantities, costs, account names, portfolio values, SQL results and full conversation are not sent to public providers.
 
-This release uses Google News RSS search excerpts, with English locale and a fixed recent-earnings/valuation/risks topic. Sources show titles, reported publication dates (or missing dates), retrieval time and HTTPS links. They are search excerpts, not full-page or filing verification; there is no live quote or fundamentals API. The answer must qualify missing evidence. Analysis details includes the outgoing-request audit. URLs in the text can be copied into your browser.
+Research identities come from locally matched portfolio names/IDs, common public aliases, narrowly parsed simple questions such as "Which is better Toyota or Honda?", explicit [ID: ...] insertions, or the separate Public securities field. That field accepts public names, tickers, ISINs or Israeli security numbers, separated by semicolons. Use it to disambiguate a security or research one outside your holdings. Do not put account details in this public-only field. Ambiguous names still need qualification; an unidentified or unsupported quote symbol is never proof the security does not exist.
 
-A deliberately finite public company directory supports TSLA, AAPL, MSFT, GOOGL, AMZN, NVDA, META, BRK.B, AMD, INTC, NFLX, JPM, V, MA, XOM, TSM, AVGO, ORCL, WMT and COST. Name the company explicitly in each researched question, including follow-ups. Unsupported companies produce a local answer with a disclosed research limitation. The model cannot send arbitrary queries, conversation history or SQL results to the web. Public requests are rebuilt exclusively from canonical directory entries and a constant topic. Up to four companies are researched per question.
+The previous 20-company restriction is removed. A small alias dictionary remains only as a convenience, not an access restriction. Any identified public security can be searched. At most six securities are researched per question to bound collection time, with a partial-research notice for extras.
 
-Portfolio data and source SQL stay local. Web providers receive ordinary connection information plus the public company searches, which disclose research interests. No browser cookies or default credentials are used; redirects are disabled. Retrieved content has no network or write tool. Your existing OLLAMA_HOST=127.0.0.1:11434 and OLLAMA_NO_CLOUD=1 should remain unchanged. Windows firewall/proxy restrictions may separately block research; failures are disclosed and local analysis continues.
+Collection searches English and Hebrew news and the public web, including financial sites, exchange/issuer material and Israeli financial sources when indexed. It also attempts direct HTML/text page extraction from public search results and a structured Yahoo market response for compatible quote symbols. Coverage is best-effort, not a promise that a specific free site or every security has available data. Results show source URLs, reported publication dates or missing dates, retrieval times, and failure/availability notes. HTML extraction preserves financial text and table headings; it is not full filing verification. PDFs, authentication, paywalls, CAPTCHA and JavaScript-only pages are not bypassed. A blocked or unavailable source is disclosed; other evidence is retained. Successful market responses retain currency, exchange and quote timestamp; prices may be delayed. Israeli numeric IDs need exchange-specific quote mapping, so web research can work even when Yahoo does not recognize the ID.
 
-These controls do not guarantee the local model's conclusions. Check relevance, dates, citations, assumptions and private calculations before relying on an answer.
+The model explains evidence in English, including when the question or sources are Hebrew. Original source titles/text can retain their language. Public data is combined with private portfolio records locally. Analysis details contains the exact outgoing URLs, source excerpts and local evidence. Websites receive public security interests and ordinary network metadata, not your portfolio records.
 
-## Try it
-- What changed in my portfolio this year? Investigate the largest contributors.
-- Interpolate my portfolio value between the available observations on a date I specify.
-- Project the account a year ahead using the recent trend, then compare a 5% annual growth scenario.
-- Estimate cash as a residual, explain the assumption, and show the calculation.
-- How concentrated am I in the largest holdings? Compare with last year.
-- Graph my account value by month.
-- When did I first buy Tesla? Show the recorded ownership history.
-- Now change the assumption / exclude Tesla / use a different period / explain that result.
+## Response time and fallbacks
+Simple comparisons use a focused one-response path with local holdings, whole-portfolio context and compact public evidence. Model output is streamed as it arrives. Collection has a 55-second budget; comparison generation has a 120-second budget. Partial English text is retained when possible. If the model cannot produce a valid response, the app returns available database evidence and collected sources, labelled as an incomplete analysis instead of discarding everything.
 
-Requests are interpreted by the local model; their success depends on the available records and the model's reasoning. A missing baseline cannot become a recorded fact. The analyst can supply an explicit scenario or a useful partial answer rather than refusing the entire question.
+Other analytical questions retain the read-only SQL/calculator/estimate tool loop with per-step and overall analysis budgets. The outer request budget is four minutes. Cancel stops work. Response speed depends on your local model/hardware and load; these changes cannot guarantee a good investment explanation on every request.
 
-## Estimates are allowed
-The application displays compulsory warnings for completed interpolation/extrapolation/scenario tools and for SQL results classified as inferred, interpolated, extrapolated or scenario-based. Warnings are appended by application code, even if the model omits them from its explanation.
+## Portfolio analysis and read-only protection
+Ask for recorded values, ownership history, holdings changes, allocation, charts, arithmetic, interpolation, extrapolation or explicit scenarios. Recorded value changes are not automatically investment profit. First owned is not necessarily the transaction date.
 
-Built-in methods:
-- Linear interpolation between the nearest observations.
-- Linear extrapolation from the nearest two observations.
-- Least-squares linear regression.
-- Constant compound growth from observed points or an explicit annual-rate scenario, using a 365.25-day year.
-- One-point constant carry-forward, clearly marked as an assumption when a trend cannot be established.
+The original SQLite database is opened read-only; generated SQL runs only in a scoped, query-only RAM copy with a native SQLite authorizer. Account scope is enforced before analysis. All accounts / full database is an explicit UI option. Copy limits (128 MB or 3 million cells), query/result limits and missing data are disclosed.
 
-The built-in estimation tools omit missing observations rather than replacing them with zero. Conflicting values for the same date may be averaged for an estimate with an ambiguity warning; preferred helper views avoid mixing multiple captures in the first place. These estimates are not recorded valuations or guaranteed forecasts.
+Estimates remain permitted with application-appended warnings. Deterministic tools support linear interpolation/extrapolation, regression, compound scenarios and explicit one-point carry-forward assumptions. Inspect dates, currencies, units, assumptions and sources for important conclusions. Model interpretations, scraped figures and inferred classifications can be wrong.
 
-Custom calculations and estimates can also be expressed through read-only SQL. Numeric projection and percentage requests are steered through calculation tools before the final explanation.
-
-## Inspect the evidence
-Click **Analysis details** to inspect the copied schema, read queries, tool results, formulas, estimates, assumptions and any failed/repaired tool attempts.
-
-Computed query results and scalar calculations appear alongside the AI explanation. AI-generated SQL can still choose the wrong rows, metric or assumptions, and prose can be wrong. The warnings and audit trail make that distinction visible; they do not establish universal accuracy.
-
-First owned retains its recorded meaning and is not proof of the actual purchase transaction date. Relevant ownership markers are retrieved independently of generated SQL and supplied as grounding.
-
-## Source protection and account scope
-Generated SQL never executes against consolidation.db.
-
-1. The original database is opened with SQLite ReadOnly mode and query_only enabled.
-2. Account-linked rows are copied into an isolated in-memory database in a consistent read transaction.
-3. The in-memory database becomes query-only.
-4. A SQLite authorizer permits reads and approved calculation functions and rejects mutations, schema changes, attachments, pragmas and extension loading.
-
-For an individual account, only account-linked rows are copied; unrelated tables are listed as excluded. Choosing **All accounts / full database** explicitly includes all non-system database tables and allows cross-account calculations and global reference data. Scope is never expanded by a model-generated query. Combined-account helper views preserve captures separately for each account; comparisons must use aligned dates or disclose differences.
-
-Sorting/query temporary storage is also held in memory. No migrations, bank operations or changes to financial records are performed.
-
-## Data coverage and helper views
-All account-linked tables that fit the memory budget are discoverable by the analyst, including stored ownership events, quantities, annual records, net-worth observations and other compatible tables.
-
-Convenience views:
-- AskLatestSnapshots: newest capture for each account and valuation date.
-- AskCurrentSnapshot: latest valuation date per account.
-- AskLatestHoldings / AskCurrentHoldings: corresponding holdings with recognized summary labels excluded.
-- AskFirstOwned: explicit First owned records.
-
-Raw copied tables remain available for broader investigations. The is_summary(Name,Symbol) function is available to SQL. No reliable security-type classification is manufactured; the AI may infer one if it labels the assumptions.
-
-## Limits and privacy
-- Uses the existing local qwen3:4b runtime over HTTP loopback; no cloud inference endpoint is used. The separate optional public-research component uses HTTPS.
-- Original portfolio records are not altered. Existing saved question history still lives in %LOCALAPPDATA%/AskCons/questions.json.
-- Conversation/tool evidence and the current analysis details are held in memory for this app session.
-- Source path remains %LOCALAPPDATA%/Consolidation/consolidation.db.
-- Up to 128 MB of raw copied values or 3 million copied cells; incomplete copies are reported.
-- Each SQL result is limited to 500 rows / bounded text; aggregates can still scan the complete copied data. Truncated results are identified.
-- Queries have an approximately eight-second execution budget; the model can repair or narrow them.
-- A message can perform multiple tool calls within a bounded loop. Cancel stops pending work; the overall request timeout is ten minutes.
-- Empty/invalid inputs or mathematically undefined results may require an assumption or another method. Completed parts can still be returned.
-- These are resource and source-protection boundaries, not a fixed list of permitted financial questions.
-
-Uncheck AI analyst to access the earlier bounded-query interface if desired.
-
-## Build and verify
-Windows and .NET 8 SDK:
+## Build once
+The full project and GitHub Actions workflow build this single combined V0.8.0 release with all changes.
 
     dotnet run --project tests/AskCons.Tests.csproj -c Release
     python tools/verify_readonly.py
     python tools/verify_window_resources.py
     dotnet publish AskCons.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
 
-Optional local-model tests use synthetic records:
-
-    $env:ASKCONS_LIVE_ANALYST="1"
-    dotnet run --project tests/AskCons.Tests.csproj -c Release
-
-GitHub Actions runs the regression suite before building the V0.7.0 installer. Upload the complete source contents, including .github, tests and tools.
-
+Optional synthetic live integration: set ASKCONS_LIVE_080=1 before running tests. It uses public research and local Ollama; do not enable it in normal offline CI. No real financial database is needed by the tests.

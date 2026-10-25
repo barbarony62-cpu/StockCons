@@ -169,13 +169,28 @@ internal static class Program {
    catch(InvalidOperationException ex){Check(ex.Message.Contains("no SecurityHistoryEvents"),"Old database reports missing history capability clearly");}
    finally {File.Delete(oldPath);}
    AnalysisChecks.Run(path,Check);
+   if(Environment.GetEnvironmentVariable("ASKCONS_LIVE_080")=="1")AnalysisChecks.Live080(path,Check);
    if(Environment.GetEnvironmentVariable("ASKCONS_LIVE_RESEARCH")=="1")AnalysisChecks.LiveResearch(path,Check);
    Check(hash.SequenceEqual(SHA256.HashData(File.ReadAllBytes(path))),"All financial queries leave database bytes unchanged");
    // Instantiate and lay out the compiled WPF controls without loading a real portfolio.
    var window=new MainWindow();
    Check(((System.Windows.Controls.CheckBox)window.FindName("AnalystModeBox")).IsChecked==true,"Open-ended analyst is the default chat mode");
+   var accountBox=(System.Windows.Controls.ComboBox)window.FindName("AccountBox");
+   var accountHandler=(System.Windows.Controls.SelectionChangedEventHandler)Delegate.CreateDelegate(typeof(System.Windows.Controls.SelectionChangedEventHandler),window,typeof(MainWindow).GetMethod("AccountChanged",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance)!);
+   accountBox.SelectionChanged-=accountHandler;accountBox.ItemsSource=new[]{new Account(1,"Synthetic A")};accountBox.SelectedIndex=0;
+   var sampleArchive=new ConversationArchive();var sampleConversation=sampleArchive.Create(1);sampleConversation.Title="Tesla or Apple?";
+   sampleConversation.Messages.Add(new(){Role="You",Text="Which is better Tesla or Apple?"});sampleConversation.Messages.Add(new(){Role="AskCons",Text="Compare risk, valuation and portfolio fit."});sampleConversation.Messages.Add(new(){Role="You",Text="Now compare their concentration."});
+   typeof(MainWindow).GetField("archive",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance)!.SetValue(window,sampleArchive);
+   typeof(MainWindow).GetMethod("UpdateHistory",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance)!.Invoke(window,null);
+   var accordion=(System.Windows.Controls.StackPanel)window.FindName("ConversationList");
+   Check(accordion.Children.Count==1&&accordion.Children[0] is System.Windows.Controls.Expander,"Conversation sidebar groups questions under an expandable conversation");
+   ((System.Windows.Controls.Expander)accordion.Children[0]).IsExpanded=true;
+   var securities=(System.Windows.Controls.ListBox)window.FindName("SecuritiesList");securities.ItemsSource=new ReadOnlyPortfolio(path).CurrentSecurities(1);
+   var input=(System.Windows.Controls.TextBox)window.FindName("QuestionBox");input.Text="Investigate ";input.CaretIndex=input.Text.Length;securities.SelectedIndex=0;
+   Check(input.Text.Contains("[ID:")&&input.Text.StartsWith("Investigate "),"Actual securities control inserts name and ID into the existing question draft");
    var root=(System.Windows.FrameworkElement)window.Content;
    root.Measure(new System.Windows.Size(1280,900)); root.Arrange(new System.Windows.Rect(0,0,1280,900)); root.UpdateLayout();
+   Check(window.FindName("ConversationList")!=null&&window.FindName("SecuritiesList")!=null&&window.FindName("ElapsedText")!=null,"Compiled accordion, securities sidebar and elapsed timer controls exist");
    Check(window.FindName("Transcript") != null && window.FindName("CancelButton") != null,"Compiled conversation UI constructs and lays out");
    typeof(MainWindow).GetMethod("RenderResult",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance)!.Invoke(window,new object[]{historyRows,fullHistory.Subtitle,fullHistory.Note,fullHistory.Text});
    root.Measure(new System.Windows.Size(1280,900)); root.Arrange(new System.Windows.Rect(0,0,1280,900)); root.UpdateLayout();
