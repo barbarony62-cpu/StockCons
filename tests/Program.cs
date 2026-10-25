@@ -169,6 +169,7 @@ internal static class Program {
    catch(InvalidOperationException ex){Check(ex.Message.Contains("no SecurityHistoryEvents"),"Old database reports missing history capability clearly");}
    finally {File.Delete(oldPath);}
    AnalysisChecks.Run(path,Check);
+   if(Environment.GetEnvironmentVariable("ASKCONS_LIVE_RESEARCH")=="1")AnalysisChecks.LiveResearch(path,Check);
    Check(hash.SequenceEqual(SHA256.HashData(File.ReadAllBytes(path))),"All financial queries leave database bytes unchanged");
    // Instantiate and lay out the compiled WPF controls without loading a real portfolio.
    var window=new MainWindow();

@@ -1,4 +1,4 @@
-# AskCons V0.6.0 — open-ended local portfolio analyst
+# AskCons V0.7.0 — open-ended local portfolio analyst
 
 ## Run
 Extract the portable ZIP, close the older AskCons, and run AskCons.exe.
@@ -6,6 +6,19 @@ Start your existing Ollama installation with qwen3:4b available.
 Choose an account (or **All accounts / full database** for cross-account analysis) and leave **AI analyst** checked (the default).
 
 The default chat is no longer restricted to the classic operation catalog. It can inspect the available schema, read relevant records, compose SQL calculations, use arithmetic tools, infer values with explicit assumptions, interpolate, extrapolate, and discuss the results.
+
+## Public research and English answers
+All analyst explanations are instructed to use English, including for Hebrew questions. Hebrew model answers are retried in English. Named multi-company comparisons get fresh relevant evidence and reject unrelated holding results and unrequested first-owned lookups.
+
+To research Tesla and Apple, check **Web research**, then ask "Which is better, Tesla or Apple? Compare risks and fit within my portfolio." A preview shows the exact public URLs before any network request. Cancel keeps analysis local. Leave the checkbox off for local-only analysis.
+
+This release uses Google News RSS search excerpts, with English locale and a fixed recent-earnings/valuation/risks topic. Sources show titles, reported publication dates (or missing dates), retrieval time and HTTPS links. They are search excerpts, not full-page or filing verification; there is no live quote or fundamentals API. The answer must qualify missing evidence. Analysis details includes the outgoing-request audit. URLs in the text can be copied into your browser.
+
+A deliberately finite public company directory supports TSLA, AAPL, MSFT, GOOGL, AMZN, NVDA, META, BRK.B, AMD, INTC, NFLX, JPM, V, MA, XOM, TSM, AVGO, ORCL, WMT and COST. Name the company explicitly in each researched question, including follow-ups. Unsupported companies produce a local answer with a disclosed research limitation. The model cannot send arbitrary queries, conversation history or SQL results to the web. Public requests are rebuilt exclusively from canonical directory entries and a constant topic. Up to four companies are researched per question.
+
+Portfolio data and source SQL stay local. Web providers receive ordinary connection information plus the public company searches, which disclose research interests. No browser cookies or default credentials are used; redirects are disabled. Retrieved content has no network or write tool. Your existing OLLAMA_HOST=127.0.0.1:11434 and OLLAMA_NO_CLOUD=1 should remain unchanged. Windows firewall/proxy restrictions may separately block research; failures are disclosed and local analysis continues.
+
+These controls do not guarantee the local model's conclusions. Check relevance, dates, citations, assumptions and private calculations before relying on an answer.
 
 ## Try it
 - What changed in my portfolio this year? Investigate the largest contributors.
@@ -64,7 +77,7 @@ Convenience views:
 Raw copied tables remain available for broader investigations. The is_summary(Name,Symbol) function is available to SQL. No reliable security-type classification is manufactured; the AI may infer one if it labels the assumptions.
 
 ## Limits and privacy
-- Uses the existing local qwen3:4b runtime over HTTP loopback; no cloud endpoint or internet tool is provided.
+- Uses the existing local qwen3:4b runtime over HTTP loopback; no cloud inference endpoint is used. The separate optional public-research component uses HTTPS.
 - Original portfolio records are not altered. Existing saved question history still lives in %LOCALAPPDATA%/AskCons/questions.json.
 - Conversation/tool evidence and the current analysis details are held in memory for this app session.
 - Source path remains %LOCALAPPDATA%/Consolidation/consolidation.db.
@@ -90,5 +103,5 @@ Optional local-model tests use synthetic records:
     $env:ASKCONS_LIVE_ANALYST="1"
     dotnet run --project tests/AskCons.Tests.csproj -c Release
 
-GitHub Actions runs the regression suite before building the V0.6.0 installer. Upload the complete source contents, including .github, tests and tools.
+GitHub Actions runs the regression suite before building the V0.7.0 installer. Upload the complete source contents, including .github, tests and tools.
 

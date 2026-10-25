@@ -6,6 +6,18 @@ using AskCons;
 internal static class AnalysisChecks
 {
  public static void Run(string path,Action<bool,string> check) {
+    check(PublicResearch.Resolve("Which is better Tesla or Apple?").Select(c=>c.Symbol).SequenceEqual(new[]{"TSLA","AAPL"}),"English comparison resolves both public identifiers");
+    check(PublicResearch.Resolve("מה עדיף טסלה או אפל?").Select(c=>c.Symbol).SequenceEqual(new[]{"TSLA","AAPL"}),"Hebrew company names resolve locally to English tickers");
+    var publicUri=PublicResearch.RequestUri(new PublicCompany("TSLA","PRIVATE ACCOUNT 987654",new[]{"secret"})).AbsoluteUri;
+    check(!publicUri.Contains("PRIVATE")&&!publicUri.Contains("987654")&&!publicUri.Contains("secret")&&publicUri.StartsWith("https://news.google.com/"),"Outbound query rebuilt from canonical public identifiers only");
+    bool unknownDenied=false;try{PublicResearch.ParseSelection("ACCOUNT987654");}catch(ArgumentException){unknownDenied=true;}
+    check(unknownDenied,"Unapproved research identifiers cannot become outbound queries");
+    var parsed=PublicResearch.Parse("<rss><channel><item><title>Tesla earnings</title><link>https://example.com/earnings</link><description>Public excerpt</description></item><item><title>bad</title><link>file:///private</link></item></channel></rss>");
+    check(parsed.Count==1&&parsed[0].Published=="","Public parser rejects non-HTTPS links and preserves missing dates");
+    bool dtdDenied=false;try{PublicResearch.Parse("<!DOCTYPE rss [<!ENTITY x SYSTEM 'file:///secret'>]><rss>&x;</rss>");}catch{dtdDenied=true;}
+    check(dtdDenied,"Public XML cannot expand external entities");
+    bool irrelevantDenied=false;try{PortfolioAnalyst.ValidateComparison(new QueryData(new List<string>{"Name","Symbol"},new List<object?[]>{new object?[]{"Sigma Fund","5136627"}},false),PublicResearch.Resolve("Tesla Apple"));}catch(ArgumentException){irrelevantDenied=true;}
+    check(irrelevantDenied,"Comparison rejects unrelated fund evidence");
     using var sandbox=new AnalysisSandbox(path,1);
     double Number(string sql)=>Convert.ToDouble(sandbox.Query(sql).Rows[0][0]);
     check(Number("SELECT COUNT(*) FROM Accounts")==1 && Number("SELECT COUNT(*) FROM Accounts WHERE Id=2")==0,"AI sandbox contains selected account only");
@@ -69,6 +81,15 @@ internal static class AnalysisChecks
     check(gap.Value==150 && gap.Assumptions.Contains("Missing observations omitted"),"Interpolation over a missing database point returns a number and a warning");
     var carried=AnalysisMath.Estimate(Series(("2025-01-01",100)),"linear",new(2026,1,1));
     check(carried.Value==100 && carried.Warning=="ASSUMED ESTIMATE","One observation can produce an explicitly assumed carry-forward response");
+    var comparisonHandler=new SequenceHandler(
+        """{"action":"query","sql":"SELECT Name,Symbol,FirstOwnedDate FROM AskFirstOwned LIMIT 1","kind":"recorded","assumptions":""}""",
+        """{"action":"answer","answer":"טסלה או אפל"}""",
+        """{"action":"answer","answer":"Tesla (TSLA) and Apple (AAPL) require a comparison of risk, valuation and portfolio concentration. Current web evidence is unavailable."}""");
+    var comparisonSession=new ConversationSession{AnalysisEvidence="Unrelated first-owned fund result"};
+    var comparisonReply=new PortfolioAnalyst(new HttpClient(comparisonHandler){BaseAddress=new("http://127.0.0.1:11434/")}).Chat("Which is better Tesla or Apple?",comparisonSession,new(1,"Synthetic A"),path,CancellationToken.None).GetAwaiter().GetResult();
+    check(comparisonReply.Details.Contains("Wrong intent")&&comparisonReply.Text.Contains("Apple")&&!comparisonReply.Text.Contains("טסלה"),"Comparison repairs stale first-owned intent and rewrites Hebrew output in English");
+    check(comparisonReply.Details.Contains("PORTFOLIO CONTEXT")&&comparisonReply.Details.Contains("TotalRecordedPositions"),"Comparison distinguishes the selected-security subset from the whole portfolio");
+    check(comparisonReply.Details.Contains("RESOLVED COMPARISON")&&!comparisonReply.Text.Contains("DATABASE / QUERY RESULTS"),"Comparison prefetch uses exact tickers without dumping unrelated query output");
     var inferredHandler=new SequenceHandler(
         """{"action":"query","sql":"SELECT 2000-300 AS estimated_cash","kind":"inferred","assumptions":"Treat the residual as cash; other asset categories may explain it."}""",
         """{"action":"answer","answer":"Here is the inferred residual."}""");
@@ -92,6 +113,16 @@ internal static class AnalysisChecks
         """{"action":"answer","answer":"I checked the available holding records."}""");
     var repaired=new PortfolioAnalyst(new HttpClient(repairHandler){BaseAddress=new("http://127.0.0.1:11434/")}).Chat("Explore",new(),new(1,"A"),path,CancellationToken.None).GetAwaiter().GetResult();
     check(repaired.Details.Contains("TOOL ATTEMPT ERROR") && repaired.Text.Contains("checked"),"An unsafe/failed tool attempt can be corrected without blocking the response");
+ }
+ public static void LiveResearch(string path,Action<bool,string> check) {
+    using var timeout=new CancellationTokenSource(TimeSpan.FromMinutes(6));
+    var report=new PublicResearch().Fetch(PublicResearch.Resolve("Tesla Apple"),timeout.Token).GetAwaiter().GetResult();
+    check(report.Evidence.Contains("[W1]")&&report.Audit.Contains("news.google.com")&&!report.Audit.Contains("Synthetic"),"Live public research retrieves source excerpts using public-only requests");
+    var session=new ConversationSession{AnalysisEvidence="Previous first-owned Sigma fund lookup"};
+    var reply=new PortfolioAnalyst().Chat("Which is better Tesla or Apple? Compare business risks and fit within my portfolio, using the supplied public research. Answer in English.",session,new(1,"Synthetic A"),path,timeout.Token,s=>Console.WriteLine("LIVE "+s),s=>Console.WriteLine("TRACE "+s),report).GetAwaiter().GetResult();
+    Console.WriteLine("LIVE COMPARISON: "+reply.Text);
+    check(reply.Text.Contains("Apple",StringComparison.OrdinalIgnoreCase)&&reply.Text.Contains("Tesla",StringComparison.OrdinalIgnoreCase)&&!System.Text.RegularExpressions.Regex.IsMatch(reply.Text,@"[\u0590-\u05FF]"),"Live comparison answers in English about both requested companies");
+    check(reply.Details.Contains("PUBLIC NETWORK AUDIT")&&reply.Details.Contains("RESOLVED COMPARISON")&&!reply.Details.Contains("SELECT Name,Symbol,FirstOwnedDate"),"Live comparison combines public sources with local evidence without stale first-owned lookup");
  }
  public static void Live(string path,Action<bool,string> check) {
     var account=new Account(1,"Synthetic A");var session=new ConversationSession();
@@ -131,5 +162,6 @@ internal static class AnalysisChecks
     }
  }
 }
+
 
 

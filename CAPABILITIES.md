@@ -1,4 +1,4 @@
-# AskCons V0.6.0 capability map
+# AskCons V0.7.0 capability map
 
 The default analyst explores the available schema within the selected account or explicit All accounts / full database scope instead of choosing only from the classic operation catalog.
 
@@ -20,3 +20,9 @@ Financial meanings are not interchangeable: position value change is not necessa
 The earlier classic query engine remains available with AI analyst unchecked. Its operation restrictions do not apply to the default analyst flow.
 
 
+
+## V0.7.0 additions
+- English-only analyst responses with repair of Hebrew prose.
+- Exact public identifiers and scoped current-holdings prefetch for named comparisons; unrelated security evidence rejected.
+- Optional, previewed Google News public research for the documented 20-company directory. Dated source excerpts and request audit; no full-page verification or live market feed.
+- No arbitrary model-generated network request, source URL fetch, portfolio upload or cloud inference.

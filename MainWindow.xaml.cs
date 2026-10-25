@@ -186,8 +186,20 @@ public partial class MainWindow : Window
         try
         {
             if(AnalystModeBox.IsChecked==true) {
+                ResearchReport? research=null;
+                if(WebResearchBox.IsChecked==true) {
+                    var companies=PublicResearch.Resolve(question).Take(4).ToList();
+                    if(companies.Count==0)research=new("No public request sent: no supported company explicitly named in this question. Name a company/ticker; see Web research tooltip.","No outbound requests.");
+                    else {
+                        var preview=string.Join("\n\n",companies.Select(c=>PublicResearch.RequestUri(c).AbsoluteUri));
+                        if(MessageBox.Show("Only these fixed public searches will be sent. No portfolio data or conversation is included. Company names reveal research interests.\n\n"+preview,"Preview public requests",MessageBoxButton.OKCancel,MessageBoxImage.Information)==MessageBoxResult.OK) {
+                            try {AiStatus.Text="Retrieving public search excerpts...";research=await new PublicResearch().Fetch(companies,token);}
+                            catch(Exception ex) when(ex is not OperationCanceledException){research=new("Public research failed. Do not claim current web facts. Continue with local evidence. Reason: "+ex.Message,preview+"\nRequest failed.");}
+                        } else research=new("Web research cancelled; use local evidence only.","User cancelled before network access.");
+                    }
+                }
                 var analystResult=await analyst.Chat(question,session,account,ReadOnlyPortfolio.DefaultPath,token,
-                    status=>Dispatcher.InvokeAsync(()=>{if(Active())AiStatus.Text=status;}));
+                    status=>Dispatcher.InvokeAsync(()=>{if(Active())AiStatus.Text=status;}),research:research);
                 token.ThrowIfCancellationRequested(); if(!Active())return;
                 Reply(analystResult.Text);
                 AnswerNote.Text=analystResult.Warnings.Count>0?"Estimated / partial data — see warnings in the answer.":"AI interpretation · source queries and calculations are in Analysis details.";
